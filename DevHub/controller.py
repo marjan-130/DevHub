@@ -1,9 +1,12 @@
-﻿import json
+﻿import os
+import json
 import requests
 import tkinter as tk
 import re
+import pandas as pd
 import smtplib
 import random
+from dotenv import load_dotenv
 from google import genai
 from email.mime.text import MIMEText
 from tkinter import ttk, messagebox, filedialog, simpledialog
@@ -15,6 +18,9 @@ from validators import (
     validate_foreign_key_match, 
     check_unsaved_changes
 )
+
+# Завантажуємо змінні середовища з файлу .env
+load_dotenv()
 
 class ApiManager:
     """Клас для керування мережевими запитами (API Client)"""
@@ -58,6 +64,7 @@ class ApiManager:
                 dash_fr.api_progress.stop()
                 dash_fr.api_progress.pack_forget()
 
+
 class ArchitectManager:
     """Клас для керування графічним редактором"""
     def __init__(self, model, view, parent_controller):
@@ -78,10 +85,12 @@ class ArchitectManager:
                 table_id = self.model.add_new_element(table_name)
                 col_type = initial_type
                 if is_primary: col_type += " PRIMARY KEY"
-                self.model.add_column(table_id, "id", col_type)
+                
+                # Додаємо колонку id лише ОДИН РАЗ (баг виправлено)
+                self.model.add_column(table_id, "id", col_type, description)
+                
                 self.parent.is_dirty = True
                 self.parent.refresh_canvas()
-                self.model.add_column(table_id, "id", col_type, description)
 
     def handle_fk_setup(self):
         dash = self.view.frames[DashboardFrame]
@@ -111,14 +120,20 @@ class ArchitectManager:
             messagebox.showwarning("Warning", "No columns in this table!")
             self.cancel_fk_mode()
             return
+            
         top = tk.Toplevel(self.view)
         top.title(f"Step {step}" if self.parent.lang == "EN" else f"Крок {step}")
         top.geometry("300x350")
         top.grab_set() 
+        
         tk.Label(top, text=f"Table: {table_name}", font=("Arial", 10, "bold")).pack(pady=10)
-        lb = tk.Listbox(top, font=("Arial", 10))
+        
+        # Створюємо список
+        lb = tk.Listbox(top, font=("Arial", 10), selectbackground="#1f6feb", selectforeground="white")
         for col_name, col_type, desc in columns:
             lb.insert("end", f"{col_name} ({col_type})")
+            
+        lb.pack(fill="both", expand=True, padx=20, pady=5)
 
         def confirm():
             selection = lb.curselection()
@@ -145,6 +160,7 @@ class ArchitectManager:
                     self.cancel_fk_mode(show_msg=False) 
                     top.destroy()
                     messagebox.showinfo("Success", "Relation created!" if self.parent.lang == "EN" else "Зв'язок створено!")
+                    
         btn_text = "Confirm" if self.parent.lang == "EN" else "Підтвердити"
         ttk.Button(top, text=btn_text, command=confirm).pack(pady=15)
 
@@ -156,7 +172,13 @@ class AppController:
         self.api_mgr = ApiManager(model, view)
         self.arch_mgr = ArchitectManager(model, view, self)
 
+        # Безпечне читання ключів з .env
+        self.gemini_key = os.getenv("GEMINI_API_KEY")
+        self.smtp_email = os.getenv("SMTP_EMAIL")
+        self.smtp_password = os.getenv("SMTP_PASSWORD")
+
         self.lang = "UA"
+        self.default_dialect = "PostgreSQL"
         self.current_user_id = None
         self.current_project_id = None
         self.is_dirty = False
@@ -181,7 +203,16 @@ class AppController:
         lang_menu.add_command(label="Українська", command=lambda: self.switch_language("UA"))
         lang_menu.add_command(label="English", command=lambda: self.switch_language("EN"))
         menubar.add_cascade(label="Мова / Language", menu=lang_menu)
+        dialect_menu = tk.Menu(menubar, tearoff=0)
+        for d in ["PostgreSQL", "MySQL", "SQLite", "Oracle"]:
+            dialect_menu.add_command(label=d, command=lambda db=d: self.switch_dialect(db))
+        menubar.add_cascade(label="Діалект SQL / SQL Dialect", menu=dialect_menu)
         self.view.config(menu=menubar)
+
+    def switch_dialect(self, dialect):
+        self.default_dialect = dialect
+        msg = f"Діалект за замовчуванням змінено на: {dialect}" if self.lang == "UA" else f"Default dialect set to: {dialect}"
+        messagebox.showinfo("Налаштування", msg)
 
     def switch_language(self, lang):
         self.lang = lang
@@ -216,37 +247,43 @@ class AppController:
                 else: messagebox.showerror("Помилка", "Користувач вже існує.")
             elif user_code is not None:
                 messagebox.showerror("Помилка", "Невірний код! Реєстрацію скасовано.")
-        else: messagebox.showerror("Помилка SMTP", "Не вдалося відправити лист. Перевірте SMTP.")
+        else: messagebox.showerror("Помилка SMTP", "Не вдалося відправити лист. Перевірте налаштування .env або підключення до мережі.")
 
     def send_verification_email(self, receiver_email, code):
-        sender_email = "devhubapi@gmail.com" 
-        sender_password = "unet lckv jkkk bhmd" 
+        if not self.smtp_email or not self.smtp_password:
+            print("SMTP Error: Email credentials not found in .env")
+            return False
 
         msg = MIMEText(f"Вітаємо у DevHub Architect!\n\nВаш код підтвердження: {code}")
         msg['Subject'] = 'Код підтвердження DevHub'
-        msg['From'] = f"DevHub Admin <{sender_email}>"
+        msg['From'] = f"DevHub Admin <{self.smtp_email}>"
         msg['To'] = receiver_email
         try:
             server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, receiver_email, msg.as_string())
+            server.login(self.smtp_email, self.smtp_password)
+            server.sendmail(self.smtp_email, receiver_email, msg.as_string())
             server.quit()
             return True
         except Exception as e:
             print(f"SMTP Error: {e}")
             return False
 
-    # --- ЕКСПОРТ З ШІ GEMINI ---
+    # --- ЕКСПОРТ З ШІ GEMINI (Мульти-діалект) ---
     def handle_export_sql(self):
-        dialog = AISmartFillDialog(self.view, lang=self.lang)
+        dialog = AISmartFillDialog(self.view, lang=self.lang, default_dialect=self.default_dialect)
         self.view.wait_window(dialog)
         
         ai_insert_script = ""
         if dialog.result:
-            # 1. СТВОРЮЄМО КЛІЄНТА 
-            client = genai.Client(api_key="AIzaSyDe8PZHFbCbzqiOJAXevzHEMBVMhvLrqOU")
-            
+            if not self.gemini_key:
+                messagebox.showerror("Error", "API ключ не знайдено! Перевірте файл .env")
+                return
+
+            client = genai.Client(api_key=self.gemini_key)
             params = dialog.result
+            
+            # Отримуємо обраний діалект (якщо вікно його ще не передає, за замовчуванням PostgreSQL)
+            selected_dialect = params.get('dialect', 'PostgreSQL')
             tables = self.model.get_all_elements()
             
             messagebox.showinfo("AI Wizard", f"ШІ генерує дані. Будь ласка, зачекайте...")
@@ -257,17 +294,17 @@ class AppController:
                 
                 prompt = f"""
                 Ти — SQL розробник. Згенеруй ТОЧНО {params['count']} SQL INSERT запитів для таблиці '{t_name}'.
+                База даних (діалект): {selected_dialect}.
                 Колонки: {cols_str}.
                 Мова даних: {params['lang']}.
                 Контекст/Тема: {params['context']}.
                 Вимоги: 
-                - Тільки чистий SQL код.
-                - Дата у форматі 'YYYY-MM-DD HH:MM:SS'.
+                - Тільки чистий SQL код для вставки даних (INSERT INTO).
+                - Якщо діалект PostgreSQL або Oracle, врахуй правильний формат дат і лапок.
                 - Реалістичні дані.
                 - Без ```sql блоків.
                 """
                 try:
-                    # 2. ВИКЛИК ГЕНЕРАЦІЇ
                     response = client.models.generate_content(
                         model='gemini-2.5-flash',
                         contents=prompt
@@ -276,15 +313,56 @@ class AppController:
                 except Exception as e:
                     ai_insert_script += f"\n-- AI Error for {t_name}: {str(e)}\n"
 
-        # Формуємо фінальний файл
-        sql_structure = self.model.generate_sql_script()
-        final_code = sql_structure + "\n\n-- START AI GENERATED DATA --\n" + ai_insert_script
-        
-        path = filedialog.asksaveasfilename(defaultextension=".sql", initialfile="project_dump.sql")
-        if path:
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(final_code)
-            messagebox.showinfo("SQL", "Експорт структури та ШІ-даних завершено!")
+            # Формуємо фінальний файл з урахуванням діалекту
+            sql_structure = self.model.generate_sql_script(dialect=selected_dialect)
+            final_code = sql_structure + "\n\n-- START AI GENERATED DATA --\n" + ai_insert_script
+            
+            path = filedialog.asksaveasfilename(defaultextension=".sql", initialfile=f"project_dump_{selected_dialect.lower()}.sql")
+            if path:
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(final_code)
+                messagebox.showinfo("SQL", f"Експорт ({selected_dialect}) та ШІ-дані збережено!")
+
+    def handle_export_excel(self):
+        tables = self.model.get_all_elements()
+        if not tables:
+            messagebox.showinfo("Info", "Немає таблиць для експорту." if self.lang == "UA" else "No tables to export.")
+            return
+
+        path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="database_structure.xlsx", filetypes=[("Excel files", "*.xlsx")])
+        if not path:
+            return
+
+        data = []
+        relations = self.model.get_relations()
+        table_names = {t[0]: t[1] for t in tables} # Словник id: назва
+
+        # Збираємо дані
+        for t_uuid, t_name, _, _ in tables:
+            columns = self.model.get_columns_for_table(t_uuid)
+            for c_name, c_type, c_desc in columns:
+                
+                # Перевіряємо, чи є це поле Foreign Key
+                fk_info = ""
+                for f_id, f_col, to_id, to_col in relations:
+                    if f_id == t_uuid and f_col == c_name:
+                        target_name = table_names.get(to_id, "Unknown")
+                        fk_info = f"➡ {target_name} ({to_col})"
+
+                data.append({
+                    "Таблиця" if self.lang == "UA" else "Table": t_name,
+                    "Поле" if self.lang == "UA" else "Column": c_name,
+                    "Тип даних" if self.lang == "UA" else "Data Type": c_type,
+                    "Опис" if self.lang == "UA" else "Description": c_desc if c_desc else "",
+                    "Зв'язок (FK)" if self.lang == "UA" else "Foreign Key": fk_info
+                })
+
+        try:
+            df = pd.DataFrame(data)
+            df.to_excel(path, index=False)
+            messagebox.showinfo("Excel", "Словник бази даних успішно збережено!" if self.lang == "UA" else "Data dictionary saved successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Помилка експорту:\n{e}")
 
     def handle_login(self):
         login_fr = self.view.frames[LoginFrame]
@@ -400,7 +478,8 @@ class AppController:
     def delete_table_action(self, table_uuid):
         if messagebox.askyesno("Confirm", "Видалити таблицю?"):
             with self.model._get_connection() as conn:
-                conn.execute("DELETE FROM canvas_elements WHERE uuid = ?", (table_uuid,))
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM canvas_elements WHERE uuid = %s", (table_uuid,))
                 conn.commit()
             self.refresh_canvas()
 
@@ -439,8 +518,8 @@ class AppController:
             tk.Label(top, text="Field Name:").pack()
             name_ent = ttk.Entry(top); name_ent.pack()
             tk.Label(top, text="Type:").pack()
-            type_cb = ttk.Combobox(top, values=["INTEGER", "TEXT", "REAL", "DATETIME"], state="readonly")
-            type_cb.set("TEXT"); type_cb.pack()
+            type_cb = ttk.Combobox(top, values=["INTEGER", "TEXT", "REAL", "DATETIME", "VARCHAR", "BOOLEAN"], state="readonly")
+            type_cb.set("VARCHAR"); type_cb.pack()
             is_pk = tk.BooleanVar()
             tk.Checkbutton(top, text="PK?", variable=is_pk).pack()
             tk.Label(top, text="Description (for AI):").pack(pady=5)
@@ -471,4 +550,5 @@ class AppController:
         dash_fr.btn_open.config(command=self.handle_open_file)
         dash_fr.btn_new.config(command=self.handle_new_project)
         dash_fr.btn_export_sql.config(command=self.handle_export_sql)
+        dash_fr.btn_export_excel.config(command=self.handle_export_excel)
         dash_fr.btn_db_save.config(command=self.handle_db_save)

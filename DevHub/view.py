@@ -30,13 +30,13 @@ class MainView(tk.Tk):
 
 # --- ВІКНО НАЛАШТУВАНЬ AI ГЕНЕРАЦІЇ ---
 class AISmartFillDialog(tk.Toplevel):
-    def __init__(self, parent, lang="UA"):
+    def __init__(self, parent, lang="UA", default_dialect="PostgreSQL"):
         super().__init__(parent)
         self.result = None
         self.grab_set()
         
         self.title("AI Smart Data Generator ✨")
-        self.geometry("400x500")
+        self.geometry("400x570") # Трохи збільшили висоту під нове поле
         self.resizable(False, False)
         self.configure(bg="#161b22")
 
@@ -45,9 +45,15 @@ class AISmartFillDialog(tk.Toplevel):
 
         tk.Label(container, text="Smart Data Export", font=("Segoe UI", 14, "bold"), bg="#161b22", fg="#4ade80").pack(pady=(0, 20))
 
+        # --- НОВЕ: Вибір діалекту БД ---
+        tk.Label(container, text="База даних (Діалект) / SQL Dialect:", bg="#161b22", fg="white").pack(anchor="w")
+        self.dialect_var = tk.StringVar(value=default_dialect)
+        self.combo_dialect = ttk.Combobox(container, textvariable=self.dialect_var, values=["PostgreSQL", "MySQL", "SQLite", "Oracle"], state="readonly")
+        self.combo_dialect.pack(fill="x", pady=(5, 15))
+
         tk.Label(container, text="Мова даних / Data Language:", bg="#161b22", fg="white").pack(anchor="w")
         self.lang_var = tk.StringVar(value="Українська")
-        self.combo_lang = ttk.Combobox(container, textvariable=self.lang_var, values=["Українська", "English", "Deutsch"])
+        self.combo_lang = ttk.Combobox(container, textvariable=self.lang_var, values=["Українська", "English", "Deutsch"], state="readonly")
         self.combo_lang.pack(fill="x", pady=(5, 15))
 
         tk.Label(container, text="Кількість рядків (на таблицю):", bg="#161b22", fg="white").pack(anchor="w")
@@ -57,7 +63,7 @@ class AISmartFillDialog(tk.Toplevel):
         self.slider.pack(fill="x", pady=(5, 15))
 
         tk.Label(container, text="Додаткові побажання (фільтри/тема):", bg="#161b22", fg="white").pack(anchor="w")
-        self.context_text = tk.Text(container, height=5, bg="#0d1117", fg="white", insertbackground="white", bd=1, relief="solid")
+        self.context_text = tk.Text(container, height=4, bg="#0d1117", fg="white", insertbackground="white", bd=1, relief="solid")
         self.context_text.insert("1.0", "Реальні імена, ціни в гривнях, без нецензурної лексики")
         self.context_text.pack(fill="both", expand=True, pady=(5, 20))
 
@@ -76,7 +82,9 @@ class AISmartFillDialog(tk.Toplevel):
         self.result = {
             "lang": self.lang_var.get(),
             "count": self.count_var.get(),
-            "context": self.context_text.get("1.0", "end-1c")
+            "context": self.context_text.get("1.0", "end-1c"),
+            # --- НОВЕ: Передаємо діалект ---
+            "dialect": self.dialect_var.get()
         }
         self.destroy()
 
@@ -275,6 +283,11 @@ class DashboardFrame(tk.Frame):
         self.btn_export_sql = tk.Button(self.toolbar, text="⚡ Експорт SQL", **export_style)
         self.btn_export_sql.pack(side="right", padx=10, pady=8)
 
+        excel_style = btn_style.copy()
+        excel_style.update({"bg": "#1f6feb", "fg": "white"}) # Синя кнопка 
+        self.btn_export_excel = tk.Button(self.toolbar, text="📊 Структура (Excel)", **excel_style)
+        self.btn_export_excel.pack(side="right", padx=(10, 0), pady=8)
+
         self.main_content = tk.Frame(self, bg="#0d1117")
         self.main_content.pack(fill="both", expand=True)
 
@@ -324,13 +337,14 @@ class DashboardFrame(tk.Frame):
 
     def update_language_ui(self, lang):
         t = {
-            "UA": {"new": "📄 Новий", "open": "📂 Відкрити", "save": "💾 Зберегти (JSON)", "cloud": "☁️ В хмару", "tab": "＋ Таблиця", "fk": "🔗 Foreign Key", "export": "⚡ Експорт SQL", "search": "ПОШУК ПРОЕКТІВ", "my_projs": "МОЇ ПРОЕКТИ", "arch_tab": "📐 Database Architect", "api_tab": "🌐 API Client", "del_proj": "Видалити проект", "url": "URL:", "send": "Send Request"},
-            "EN": {"new": "📄 New", "open": "📂 Open", "save": "💾 Save (JSON)", "cloud": "☁️ Cloud Save", "tab": "＋ Table", "fk": "🔗 Relation", "export": "⚡ Export SQL", "search": "SEARCH PROJECTS", "my_projs": "MY PROJECTS", "arch_tab": "📐 Architect", "api_tab": "🌐 API Client", "del_proj": "Delete Project", "url": "URL:", "send": "Send Request"}
+            "UA": {"new": "📄 Новий", "open": "📂 Відкрити", "save": "💾 Зберегти (JSON)", "cloud": "☁️ В хмару", "tab": "＋ Таблиця", "fk": "🔗 Foreign Key", "export": "⚡ Експорт SQL", "export_ex": "📊 Структура (Excel)", "search": "ПОШУК ПРОЕКТІВ", "my_projs": "МОЇ ПРОЕКТИ", "arch_tab": "📐 Database Architect", "api_tab": "🌐 API Client", "del_proj": "Видалити проект", "url": "URL:", "send": "Send Request"},
+            "EN": {"new": "📄 New", "open": "📂 Open", "save": "💾 Save (JSON)", "cloud": "☁️ Cloud Save", "tab": "＋ Table", "fk": "🔗 Relation", "export": "⚡ Export SQL", "export_ex": "📊 Structure (Excel)", "search": "SEARCH PROJECTS", "my_projs": "MY PROJECTS", "arch_tab": "📐 Architect", "api_tab": "🌐 API Client", "del_proj": "Delete Project", "url": "URL:", "send": "Send Request"}
         }.get(lang, "UA")
         
         self.btn_new.config(text=t["new"]); self.btn_open.config(text=t["open"]); self.btn_save.config(text=t["save"])
         self.btn_db_save.config(text=t["cloud"]); self.btn_add_table.config(text=t["tab"]); self.btn_fk.config(text=t["fk"])
         self.btn_export_sql.config(text=t["export"]); self.lbl_search_title.config(text=t["search"])
+        self.btn_export_excel.config(text=t["export_ex"])
         self.lbl_my_projects.config(text=t["my_projs"]); self.notebook.tab(0, text=t["arch_tab"])
         self.notebook.tab(1, text=t["api_tab"]); self.p_menu.entryconfigure(0, label=t["del_proj"])
         self.lbl_url.config(text=t["url"]); self.btn_send.config(text=t["send"])
