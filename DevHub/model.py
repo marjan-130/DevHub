@@ -8,8 +8,9 @@ import string
 from datetime import datetime, timedelta
 
 class BaseModel:
-    """Базовий клас для роботи з PostgreSQL у Docker"""
+    """Базовий клас для налаштування підключення до PostgreSQL у Docker та створення таблиць."""
     def __init__(self):
+        """Ініціалізує параметри підключення та запускає перевірку/створення бази даних."""
         self.conn_params = {
             "dbname": "devhub",
             "user": "admin",
@@ -20,9 +21,11 @@ class BaseModel:
         self._init_db()
 
     def _get_connection(self):
+        """Повертає активне з'єднання з базою даних."""
         return psycopg2.connect(**self.conn_params)
 
     def _init_db(self):
+        """Створює всі необхідні таблиці (користувачі, проєкти, канвас тощо), якщо їх ще немає. Також створює адміна за замовчуванням."""
         queries = [
             """CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -70,6 +73,7 @@ class BaseModel:
                 for q in queries:
                     cur.execute(q)
                 
+                # Створення базового адміністратора
                 cur.execute("SELECT id FROM users WHERE login=%s", ("admin",))
                 if not cur.fetchone():
                     pwd_hash = hashlib.sha256("admin123".encode()).hexdigest()
@@ -78,16 +82,26 @@ class BaseModel:
             conn.commit()
 
     def _sanitize_name(self, name):
+        """Очищає назви (таблиць, полів) від спецсимволів, залишаючи лише букви, цифри та підкреслення."""
         return ''.join(c if c.isalnum() or c == '_' else '_' for c in name)
 
     def _validate_type(self, col_type):
+        """Перевіряє, чи підтримується вказаний SQL тип даних. Також пропускає типи з розміром, як VARCHAR(64)."""
         allowed_types = ["TEXT", "INTEGER", "REAL", "VARCHAR", "DATETIME", "TIMESTAMP", "BOOLEAN"]
-        base_type = col_type.split()[0].upper()
-        return col_type if base_type in allowed_types else "TEXT"
+        
+        # Беремо базовий тип до дужок. Наприклад, "VARCHAR(64)" -> "VARCHAR"
+        base_type = col_type.upper().split('(')[0].split()[0]
+        
+        if base_type in allowed_types:
+            return col_type
+            
+        return "TEXT" # Безпечний фолбек, якщо тип не розпізнано
 
 
 class AuthService(BaseModel):
+    """Сервіс для автентифікації та реєстрації користувачів."""
     def authenticate(self, login_or_email, password):
+        """Перевіряє логін/email та пароль. Повертає ID користувача у разі успіху, або None."""
         pwd_hash = hashlib.sha256(password.encode()).hexdigest()
         query = "SELECT id FROM users WHERE (login = %s OR email = %s) AND password_hash = %s"
         with self._get_connection() as conn:
@@ -97,6 +111,7 @@ class AuthService(BaseModel):
                 return res[0] if res else None
 
     def register(self, login, email, password):
+        """Створює нового користувача. Повертає True, якщо успішно, і False, якщо користувач вже існує."""
         pwd_hash = hashlib.sha256(password.encode()).hexdigest()
         try:
             with self._get_connection() as conn:
@@ -108,9 +123,26 @@ class AuthService(BaseModel):
         except Exception:
             return False 
 
+    def check_email_exists(self, email):
+        """Перевіряє, чи є такий email в базі даних"""
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+                return cur.fetchone() is not None
+
+    def update_password(self, email, new_password):
+        """Хешує та оновлює пароль для користувача"""
+        import hashlib
+        pwd_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE users SET password_hash = %s WHERE email = %s", (pwd_hash, email))
+            conn.commit()
 
 class ProjectService(BaseModel):
+    """Сервіс для керування проєктами (збереження, завантаження, видалення, перейменування)."""
     def get_user_projects(self, user_id, search_term=""):
+        """Повертає список проєктів конкретного користувача, фільтруючи за назвою (пошук)."""
         query = """SELECT id, project_name, last_opened FROM projects 
                    WHERE user_id = %s AND project_name ILIKE %s 
                    ORDER BY project_name ASC"""
@@ -120,12 +152,21 @@ class ProjectService(BaseModel):
                 return cur.fetchall()
 
     def delete_project(self, project_id):
+        """Видаляє проєкт користувача з бази даних за його ID."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
             conn.commit()
 
+    def rename_project(self, project_id, new_name):
+        """Перейменовує існуючий проєкт у базі даних."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE projects SET project_name = %s WHERE id = %s", (new_name, project_id))
+            conn.commit()
+
     def save_project_to_db(self, user_id, project_name, canvas_data, project_id=None):
+        """Зберігає стан канвасу у форматі JSON. Якщо project_id передано - оновлює існуючий, інакше - створює новий."""
         json_str = json.dumps(canvas_data)
         now = datetime.now()
         with self._get_connection() as conn:
@@ -141,6 +182,7 @@ class ProjectService(BaseModel):
                 return res[0] if res else None
 
     def load_project_from_db(self, project_id):
+        """Завантажує збережений JSON-стан проєкту з бази."""
         query = "SELECT json_data FROM projects WHERE id = %s"
         with self._get_connection() as conn:
             with conn.cursor() as cur:
@@ -150,7 +192,9 @@ class ProjectService(BaseModel):
 
 
 class ArchitectService(BaseModel):
+    """Сервіс для керування архітектурою бази даних (таблицями, колонками, зв'язками)."""
     def add_new_element(self, name, x=50, y=50):
+        """Створює нову таблицю на канвасі та генерує для неї унікальний UUID."""
         unique_id = str(uuid.uuid4())
         name = self._sanitize_name(name)
         with self._get_connection() as conn:
@@ -160,18 +204,21 @@ class ArchitectService(BaseModel):
         return unique_id
 
     def update_element_pos(self, uuid, x, y):
+        """Оновлює координати таблиці на канвасі після її перетягування."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE canvas_elements SET x = %s, y = %s WHERE uuid = %s", (x, y, uuid))
             conn.commit()
 
     def get_all_elements(self):
+        """Отримує всі таблиці (їх UUID, назви та координати) для поточного проєкту."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT uuid, name, x, y FROM canvas_elements")
                 return cur.fetchall()
 
     def add_column(self, table_uuid, col_name, col_type="TEXT", description=""):
+        """Додає нове поле до вказаної таблиці."""
         col_name = self._sanitize_name(col_name)
         col_type = self._validate_type(col_type)
         with self._get_connection() as conn:
@@ -180,13 +227,37 @@ class ArchitectService(BaseModel):
                             (table_uuid, col_name, col_type, description))
             conn.commit()
 
+    def update_column(self, table_uuid, old_col_name, new_col_name, new_col_type, new_desc):
+        """Оновлює назву, тип та опис існуючої колонки."""
+        new_col_name = self._sanitize_name(new_col_name)
+        new_col_type = self._validate_type(new_col_type)
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE table_columns 
+                    SET column_name = %s, column_type = %s, description = %s
+                    WHERE table_uuid = %s AND column_name = %s
+                """, (new_col_name, new_col_type, new_desc, table_uuid, old_col_name))
+            conn.commit()
+
+    def delete_column(self, table_uuid, col_name):
+        """Видаляє колонку з таблиці та автоматично підчищає всі зв'язки (FK), де ця колонка брала участь."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM table_columns WHERE table_uuid = %s AND column_name = %s", (table_uuid, col_name))
+                cur.execute("DELETE FROM table_relations WHERE (from_uuid = %s AND from_col = %s) OR (to_uuid = %s AND to_col = %s)", 
+                            (table_uuid, col_name, table_uuid, col_name))
+            conn.commit()
+
     def get_columns_for_table(self, table_uuid):
+        """Повертає список всіх полів для конкретної таблиці."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT column_name, column_type, description FROM table_columns WHERE table_uuid = %s", (table_uuid,))
                 return cur.fetchall()
 
     def add_relation(self, from_id, from_col, to_id, to_col):
+        """Створює зв'язок (Foreign Key) між двома колонками з різних таблиць."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO table_relations (from_uuid, from_col, to_uuid, to_col) VALUES (%s, %s, %s, %s)", 
@@ -194,13 +265,14 @@ class ArchitectService(BaseModel):
             conn.commit()
 
     def get_relations(self):
+        """Повертає всі наявні зв'язки (FK) для малювання ліній на канвасі."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT from_uuid, from_col, to_uuid, to_col FROM table_relations")
                 return cur.fetchall()
 
-    # --- ОНОВЛЕНИЙ МЕТОД РОЗУМНОГО ЕКСПОРТУ ---
     def generate_sql_script(self, dialect="PostgreSQL"):
+        """Генерує готовий SQL код для створення БД, адаптуючи типи даних під обраний діалект (PostgreSQL, MySQL, Oracle, SQLite)."""
         tables = self.get_all_elements()
         sql_output = f"-- DevHub Architect Export ({dialect})\n"
         sql_output += f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
@@ -254,7 +326,9 @@ class ArchitectService(BaseModel):
 
 
 class DataModel(AuthService, ProjectService, ArchitectService):
+    """Головний клас моделі даних, який об'єднує всі сервіси."""
     def log_api_call(self, url, status):
+        """Логує кожен виклик API у базі даних (для історії)."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("INSERT INTO api_logs (url, status, timestamp) VALUES (%s, %s, %s)", 
@@ -262,6 +336,7 @@ class DataModel(AuthService, ProjectService, ArchitectService):
             conn.commit()
 
     def get_current_canvas_data(self):
+        """Збирає всі елементи канвасу (таблиці, поля, зв'язки) у єдиний словник для експорту або збереження."""
         els = self.get_all_elements()
         return {
             "elements": els,
@@ -270,6 +345,7 @@ class DataModel(AuthService, ProjectService, ArchitectService):
         }
 
     def apply_canvas_data(self, data):
+        """Очищає поточний канвас і завантажує нові дані з переданого словника (наприклад, при відкритті проєкту)."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM table_relations")
@@ -287,14 +363,17 @@ class DataModel(AuthService, ProjectService, ArchitectService):
             conn.commit()
 
     def export_to_json(self, path):
+        """Експортує поточний стан канвасу у локальний .json файл."""
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(self.get_current_canvas_data(), f, indent=4)
 
     def import_from_json(self, path):
+        """Імпортує стан канвасу з локального .json файлу."""
         with open(path, 'r', encoding='utf-8') as f:
             self.apply_canvas_data(json.load(f))
 
     def clear_all_data(self):
+        """Повністю очищає канвас (використовується при створенні нового проєкту або зміні користувача)."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM table_relations")
@@ -303,6 +382,7 @@ class DataModel(AuthService, ProjectService, ArchitectService):
             conn.commit()
 
     def generate_mock_values(self, table_uuid, count=10, year_filter=True):
+        """Службовий метод для генерації випадкових даних (Mock data) без використання ШІ."""
         columns = self.get_columns_for_table(table_uuid)
         all_rows = []
         for _ in range(count):

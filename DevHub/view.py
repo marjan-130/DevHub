@@ -1,7 +1,8 @@
 ﻿import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 
 class MainView(tk.Tk):
+    """Головне вікно програми. Ініціалізує базові налаштування екрану та контейнери для фреймів."""
     def __init__(self):
         super().__init__()
         self.title("DevHub Architect & API")
@@ -22,21 +23,111 @@ class MainView(tk.Tk):
         self.show_frame(LoginFrame)
 
     def show_frame(self, frame_class):
+        """Перемикає видимість фреймів (наприклад, з екрану логіну на дашборд)."""
         frame = self.frames[frame_class]
         frame.tkraise()
 
     def start(self):
+        """Запускає головний цикл подій Tkinter."""
         self.mainloop()
 
-# --- ВІКНО НАЛАШТУВАНЬ AI ГЕНЕРАЦІЇ ---
+# --- БАЗОВІ КАСТОМНІ ВІКНА ---
+
+class CustomDialog(tk.Toplevel):
+    """Базовий клас для стильних діалогових вікон. Автоматично центрується на екрані та блокує головне вікно."""
+    def __init__(self, parent, title="DevHub", width=350, height=200):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry(f"{width}x{height}")
+        self.configure(bg="#161b22")
+        self.resizable(False, False)
+        self.transient(parent) 
+        self.grab_set()        
+        
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.winfo_screenheight() // 2) - (height // 2)
+        self.geometry(f"+{x}+{y}")
+
+class ProgressDialog(CustomDialog):
+    """Вікно завантаження з анімацією. Використовується під час тривалих процесів (наприклад, звернення до ШІ)."""
+    def __init__(self, parent, message="Обробка даних..."):
+        super().__init__(parent, title="Processing", width=400, height=150)
+        
+        container = tk.Frame(self, bg="#161b22", padx=20, pady=20)
+        container.pack(fill="both", expand=True)
+
+        tk.Label(container, text="✨", font=("Arial", 24), bg="#161b22", fg="#4ade80").pack()
+        tk.Label(container, text=message, font=("Segoe UI", 11), bg="#161b22", fg="white").pack(pady=10)
+        
+        self.progress = ttk.Progressbar(container, orient="horizontal", length=300, mode="indeterminate")
+        self.progress.pack(pady=5)
+        self.progress.start(10)
+
+    def close(self):
+        """Зупиняє анімацію і закриває вікно завантаження."""
+        self.progress.stop()
+        self.destroy()
+
+class VerificationDialog(CustomDialog):
+    """Вікно для введення 6-значного коду верифікації, що надсилається на email."""
+    def __init__(self, parent, email):
+        super().__init__(parent, title="Підтвердження Email", width=350, height=230)
+        self.result = None
+        
+        container = tk.Frame(self, bg="#161b22", padx=25, pady=20)
+        container.pack(fill="both", expand=True)
+
+        tk.Label(container, text="📧 Код відправлено!", font=("Segoe UI", 12, "bold"), bg="#161b22", fg="#4ade80").pack()
+        tk.Label(container, text=f"Введіть 6-значний код з пошти\n{email}", font=("Segoe UI", 9), bg="#161b22", fg="#8b949e").pack(pady=5)
+
+        self.code_entry = tk.Entry(container, bg="#0d1117", fg="white", font=("Arial", 16, "bold"), 
+                                  insertbackground="white", justify="center", bd=1, relief="solid")
+        self.code_entry.pack(fill="x", pady=15, ipady=5)
+        self.code_entry.focus()
+
+        btn = tk.Button(container, text="ПЕРЕВІРИТИ", bg="#238636", fg="white", font=("Segoe UI", 10, "bold"),
+                        bd=0, pady=8, cursor="hand2", command=self.confirm)
+        btn.pack(fill="x")
+
+    def confirm(self):
+        """Зберігає введений код і закриває вікно."""
+        self.result = self.code_entry.get().strip()
+        self.destroy()
+
+class MessageDialog(CustomDialog):
+    """Кастомна заміна стандартним сірим вікнам (messagebox). Має різні кольори для помилок, інфо та успіху."""
+    def __init__(self, parent, title, message, m_type="info"):
+        super().__init__(parent, title=title, width=380, height=180)
+        
+        container = tk.Frame(self, bg="#161b22", padx=20, pady=20)
+        container.pack(fill="both", expand=True)
+        
+        colors = {"info": "#58a6ff", "error": "#f85149", "success": "#4ade80"}
+        icons = {"info": "ℹ️", "error": "❌", "success": "✅"}
+        
+        top_frame = tk.Frame(container, bg="#161b22")
+        top_frame.pack(fill="x")
+        
+        tk.Label(top_frame, text=icons.get(m_type, "ℹ️"), font=("Arial", 20), bg="#161b22", fg=colors.get(m_type, "white")).pack(side="left", padx=(0, 10))
+        tk.Label(top_frame, text=title, font=("Segoe UI", 12, "bold"), bg="#161b22", fg=colors.get(m_type, "white")).pack(side="left")
+        
+        tk.Label(container, text=message, font=("Segoe UI", 10), bg="#161b22", fg="#c9d1d9", wraplength=320, justify="left").pack(anchor="w", pady=15)
+        
+        btn = tk.Button(container, text="ОК", bg="#21262d", fg="white", font=("Segoe UI", 10), bd=0, padx=20, pady=5, cursor="hand2", command=self.destroy)
+        btn.pack(side="right")
+
+# --- РОБОЧІ ВІКНА ПРОГРАМИ ---
+
 class AISmartFillDialog(tk.Toplevel):
+    """Вікно налаштувань для генерації даних за допомогою ШІ."""
     def __init__(self, parent, lang="UA", default_dialect="PostgreSQL"):
         super().__init__(parent)
         self.result = None
         self.grab_set()
         
         self.title("AI Smart Data Generator ✨")
-        self.geometry("400x570") # Трохи збільшили висоту під нове поле
+        self.geometry("400x570") 
         self.resizable(False, False)
         self.configure(bg="#161b22")
 
@@ -45,7 +136,6 @@ class AISmartFillDialog(tk.Toplevel):
 
         tk.Label(container, text="Smart Data Export", font=("Segoe UI", 14, "bold"), bg="#161b22", fg="#4ade80").pack(pady=(0, 20))
 
-        # --- НОВЕ: Вибір діалекту БД ---
         tk.Label(container, text="База даних (Діалект) / SQL Dialect:", bg="#161b22", fg="white").pack(anchor="w")
         self.dialect_var = tk.StringVar(value=default_dialect)
         self.combo_dialect = ttk.Combobox(container, textvariable=self.dialect_var, values=["PostgreSQL", "MySQL", "SQLite", "Oracle"], state="readonly")
@@ -79,74 +169,135 @@ class AISmartFillDialog(tk.Toplevel):
         self.btn_skip.pack(side="left")
 
     def confirm(self):
+        """Збирає всі налаштування генерації у словник та передає контролеру."""
         self.result = {
             "lang": self.lang_var.get(),
             "count": self.count_var.get(),
             "context": self.context_text.get("1.0", "end-1c"),
-            # --- НОВЕ: Передаємо діалект ---
             "dialect": self.dialect_var.get()
         }
         self.destroy()
 
-class ColumnDialog(tk.Toplevel):
-    def __init__(self, parent, lang="UA"):
-        super().__init__(parent)
+class TableManagerDialog(CustomDialog):
+    """Повноцінний редактор таблиці. Показує список колонок і дозволяє їх додавати, змінювати або видаляти."""
+    def __init__(self, parent, table_name, columns):
+        super().__init__(parent, title=f"Налаштування: {table_name}", width=450, height=350)
+        self.action = None
+        self.data = None
+        
+        container = tk.Frame(self, bg="#161b22", padx=20, pady=20)
+        container.pack(fill="both", expand=True)
+        
+        tk.Label(container, text="Поля таблиці:", font=("Segoe UI", 12, "bold"), bg="#161b22", fg="white").pack(anchor="w", pady=(0, 10))
+        
+        self.lb = tk.Listbox(container, bg="#0d1117", fg="#c9d1d9", font=("Segoe UI", 10), 
+                             bd=1, relief="solid", selectbackground="#1f6feb", selectforeground="white")
+        self.lb.pack(fill="both", expand=True, pady=5)
+        
+        for c in columns:
+            prefix = "🔑 " if "PRIMARY KEY" in c[1].upper() else "• "
+            self.lb.insert("end", f"{prefix}{c[0]}  |  {c[1]}")
+            
+        btn_fr = tk.Frame(container, bg="#161b22")
+        btn_fr.pack(fill="x", pady=10)
+        
+        tk.Button(btn_fr, text="➕ Додати", bg="#238636", fg="white", bd=0, padx=15, pady=5, cursor="hand2", command=self.add_f).pack(side="left")
+        tk.Button(btn_fr, text="✏️ Редагувати", bg="#1f6feb", fg="white", bd=0, padx=15, pady=5, cursor="hand2", command=self.edit_f).pack(side="left", padx=10)
+        tk.Button(btn_fr, text="❌ Видалити", bg="#f85149", fg="white", bd=0, padx=15, pady=5, cursor="hand2", command=self.del_f).pack(side="right")
+
+    def add_f(self):
+        """Встановлює дію 'add' і закриває вікно, щоб контролер викликав ColumnDialog."""
+        self.action = "add"
+        self.destroy()
+
+    def edit_f(self):
+        """Витягує назву обраної колонки для подальшого редагування."""
+        sel = self.lb.curselection()
+        if sel:
+            raw_text = self.lb.get(sel[0])
+            self.data = raw_text.replace("🔑 ", "").replace("• ", "").split("  |  ")[0]
+            self.action = "edit"
+            self.destroy()
+
+    def del_f(self):
+        """Витягує назву обраної колонки для подальшого видалення."""
+        sel = self.lb.curselection()
+        if sel:
+            raw_text = self.lb.get(sel[0])
+            self.data = raw_text.replace("🔑 ", "").replace("• ", "").split("  |  ")[0]
+            self.action = "delete"
+            self.destroy()
+
+
+class ColumnDialog(CustomDialog):
+    """Вікно для створення нового поля або редагування існуючого (назва, тип, розмір, опис)."""
+    def __init__(self, parent, lang="UA", edit_data=None):
+        title = "Редагувати поле" if edit_data else "Нове поле"
+        super().__init__(parent, title=title, width=380, height=300) 
         self.result = None
-        self.grab_set()
-
-        txt = {
-            "UA": {"t": "Параметри таблиці", "n": "Назва таблиці:", "tp": "Тип колонки:", "pk": "Встановити як Primary Key", "ok": "Створити"},
-            "EN": {"t": "Table Parameters", "n": "Table Name:", "tp": "Main Column Type:", "pk": "Set as Primary Key", "ok": "Create"}
-        }.get(lang, "UA")
-
-        self.title(txt["t"])
-        self.geometry("350x340") 
-        self.resizable(False, False)
-
-        container = tk.Frame(self, padx=20, pady=20)
+        
+        container = tk.Frame(self, bg="#161b22", padx=20, pady=20)
         container.pack(fill="both", expand=True)
 
-        self.lbl_table_name = tk.Label(container, text=txt["n"], font=("Arial", 10))
-        self.lbl_table_name.pack(anchor="w")
-        
+        tk.Label(container, text="Назва поля:", font=("Arial", 10), bg="#161b22", fg="white").pack(anchor="w")
         self.entry_name = ttk.Entry(container, width=40)
         self.entry_name.pack(pady=(5, 10))
         self.entry_name.focus()
 
-        self.lbl_col_type = tk.Label(container, text=txt["tp"], font=("Arial", 10))
-        self.lbl_col_type.pack(anchor="w")
+        type_frame = tk.Frame(container, bg="#161b22")
+        type_frame.pack(fill="x", pady=5)
+        tk.Label(type_frame, text="Тип:", font=("Arial", 10), bg="#161b22", fg="white").pack(side="left")
+        tk.Label(type_frame, text="Розмір (напр. 64):", font=("Arial", 10), bg="#161b22", fg="#8b949e").pack(side="right", padx=(0, 20))
         
-        self.type_combo = ttk.Combobox(container, values=["INTEGER", "TEXT", "REAL", "BLOB", "DATETIME"], width=37)
-        self.type_combo.set("INTEGER")
-        self.type_combo.pack(pady=5)
-
-        self.is_pk = tk.BooleanVar(value=True)
-        self.chk_pk = tk.Checkbutton(container, text=txt["pk"], variable=self.is_pk)
-        self.chk_pk.pack(anchor="w", pady=5)
-
-        self.lbl_desc = tk.Label(container, text="Опис (для ШІ):", font=("Arial", 10))
-        self.lbl_desc.pack(anchor="w", pady=(5, 0))
+        inputs_frame = tk.Frame(container, bg="#161b22")
+        inputs_frame.pack(fill="x")
+        self.type_combo = ttk.Combobox(inputs_frame, values=["INTEGER", "VARCHAR", "TEXT", "REAL", "DATETIME", "BOOLEAN"], width=20, state="readonly")
+        self.type_combo.set("VARCHAR")
+        self.type_combo.pack(side="left")
         
+        self.entry_size = ttk.Entry(inputs_frame, width=10)
+        self.entry_size.pack(side="right", padx=(0, 20))
+
+        tk.Label(container, text="Опис (для ШІ):", font=("Arial", 10), bg="#161b22", fg="white").pack(anchor="w", pady=(15, 0))
         self.entry_desc = ttk.Entry(container, width=40)
         self.entry_desc.pack(pady=5)
 
-        btn_frame = tk.Frame(container)
+        btn_frame = tk.Frame(container, bg="#161b22")
         btn_frame.pack(pady=15)
-        
-        self.btn_ok = ttk.Button(btn_frame, text=txt["ok"], command=self.on_ok)
+        self.btn_ok = tk.Button(btn_frame, text="Зберегти", bg="#238636", fg="white", bd=0, padx=20, pady=5, cursor="hand2", command=self.on_ok)
         self.btn_ok.pack(side="left", padx=10)
-        
-        self.btn_cancel = ttk.Button(btn_frame, text="Cancel" if lang=="EN" else "Скасувати", command=self.destroy)
+        self.btn_cancel = tk.Button(btn_frame, text="Скасувати", bg="#30363d", fg="white", bd=0, padx=20, pady=5, cursor="hand2", command=self.destroy)
         self.btn_cancel.pack(side="left", padx=10)
 
+        # Якщо ми редагуємо поле — підтягуємо старі дані у віджети
+        if edit_data:
+            self.entry_name.insert(0, edit_data[0])
+            full_type = edit_data[1]
+            if "(" in full_type:
+                self.type_combo.set(full_type.split("(")[0])
+                self.entry_size.insert(0, full_type.split("(")[1].replace(")", ""))
+            else:
+                self.type_combo.set(full_type.split()[0])
+            if edit_data[2]:
+                self.entry_desc.insert(0, edit_data[2])
+
     def on_ok(self):
+        """Збирає введені дані, валідує їх на наявність розміру і повертає як кортеж."""
         name = self.entry_name.get().strip()
         desc = self.entry_desc.get().strip()
+        tp = self.type_combo.get()
+        sz = self.entry_size.get().strip()
+        
+        # Об'єднуємо тип і розмір, якщо це необхідно
+        if tp == "VARCHAR" and sz.isdigit():
+            tp = f"VARCHAR({sz})"
+            
         if name:
-            self.result = (name, self.type_combo.get(), self.is_pk.get(), desc)
+            self.result = (name, tp, desc)
             self.destroy()
 
 class LoginFrame(tk.Frame):
+    """Фрейм сторінки авторизації та реєстрації."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#0d1117")
         self.controller = controller
@@ -169,6 +320,7 @@ class LoginFrame(tk.Frame):
         self.show_login_form()
 
     def show_login_form(self):
+        """Очищає форму та будує інтерфейс для входу (логіну)."""
         for widget in self.form_container.winfo_children():
             widget.destroy()
 
@@ -194,10 +346,14 @@ class LoginFrame(tk.Frame):
         self.btn_login.pack(fill="x", pady=(20, 10))
         self.btn_login.config(command=lambda: self.controller.app_logic.handle_login())
 
-        tk.Label(self.form_container, text="Forgot Password?", font=("Segoe UI", 9), 
-                 bg="#161b22", fg="#8b949e", cursor="hand2").pack()
+        # ОНОВЛЕНО: Прив'язка функції відновлення пароля
+        self.lbl_forgot = tk.Label(self.form_container, text="Forgot Password?", font=("Segoe UI", 9), 
+                                   bg="#161b22", fg="#8b949e", cursor="hand2")
+        self.lbl_forgot.pack()
+        self.lbl_forgot.bind("<Button-1>", lambda e: self.controller.app_logic.handle_forgot_password())
 
     def show_register_form(self):
+        """Очищає форму та будує інтерфейс для реєстрації."""
         for widget in self.form_container.winfo_children():
             widget.destroy()
             
@@ -222,6 +378,7 @@ class LoginFrame(tk.Frame):
         return self.canvas.create_polygon(points, **kwargs, smooth=True)
 
     def _create_input(self, placeholder, is_pass):
+        """Створює стилізоване поле введення з підтримкою placeholder-у."""
         container = tk.Frame(self.form_container, bg="#1f2430", highlightthickness=1, 
                              highlightbackground="#30363d", padx=10, pady=7)
         container.pack(fill="x", pady=5)
@@ -247,15 +404,14 @@ class LoginFrame(tk.Frame):
         return ent
 
 class DashboardFrame(tk.Frame):
+    """Головний фрейм програми, що містить робочий простір (Architect) та бічну панель з проєктами."""
     def __init__(self, parent, controller):
         super().__init__(parent, bg="#0d1117")
         self.controller = controller
         
-        # --- ТЕМНА ТЕМА ДЛЯ TOOLBAR ---
         self.toolbar = tk.Frame(self, bg="#161b22", height=50, bd=1, relief="flat")
         self.toolbar.pack(side="top", fill="x")
 
-        # Використовуємо кастомні темні кнопки
         btn_style = {"bg": "#21262d", "fg": "#c9d1d9", "bd": 0, "padx": 10, "pady": 5, "activebackground": "#30363d", "activeforeground": "white", "cursor": "hand2"}
 
         self.btn_toggle_sidebar = tk.Button(self.toolbar, text="☰", command=self.toggle_sidebar, **btn_style)
@@ -279,19 +435,18 @@ class DashboardFrame(tk.Frame):
         self.btn_fk.pack(side="left", padx=2, pady=8)
 
         export_style = btn_style.copy()
-        export_style.update({"bg": "#238636", "fg": "white"}) # Зелена кнопка для експорту
+        export_style.update({"bg": "#238636", "fg": "white"}) 
         self.btn_export_sql = tk.Button(self.toolbar, text="⚡ Експорт SQL", **export_style)
         self.btn_export_sql.pack(side="right", padx=10, pady=8)
 
         excel_style = btn_style.copy()
-        excel_style.update({"bg": "#1f6feb", "fg": "white"}) # Синя кнопка 
+        excel_style.update({"bg": "#1f6feb", "fg": "white"}) 
         self.btn_export_excel = tk.Button(self.toolbar, text="📊 Структура (Excel)", **excel_style)
         self.btn_export_excel.pack(side="right", padx=(10, 0), pady=8)
 
         self.main_content = tk.Frame(self, bg="#0d1117")
         self.main_content.pack(fill="both", expand=True)
 
-        # --- ТЕМНА ТЕМА ДЛЯ SIDEBAR ---
         self.sidebar = tk.Frame(self.main_content, width=220, bg="#0d1117", bd=0)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
@@ -309,7 +464,7 @@ class DashboardFrame(tk.Frame):
         self.list_container.pack(fill="both", expand=True, padx=10, pady=10)
 
         self.project_listbox = tk.Listbox(self.list_container, bg="#161b22", fg="#c9d1d9", bd=1, relief="solid", font=("Segoe UI", 10), 
-                                          highlightthickness=0, selectbackground="#1f6feb", selectforeground="white")
+                                         highlightthickness=0, selectbackground="#1f6feb", selectforeground="white")
         self.project_listbox.pack(side="left", fill="both", expand=True)
 
         self.project_scroll = ttk.Scrollbar(self.list_container, orient="vertical", command=self.project_listbox.yview)
@@ -336,6 +491,7 @@ class DashboardFrame(tk.Frame):
         self._draw_grid()
 
     def update_language_ui(self, lang):
+        """Оновлює текстові лейбли на обрану мову."""
         t = {
             "UA": {"new": "📄 Новий", "open": "📂 Відкрити", "save": "💾 Зберегти (JSON)", "cloud": "☁️ В хмару", "tab": "＋ Таблиця", "fk": "🔗 Foreign Key", "export": "⚡ Експорт SQL", "export_ex": "📊 Структура (Excel)", "search": "ПОШУК ПРОЕКТІВ", "my_projs": "МОЇ ПРОЕКТИ", "arch_tab": "📐 Database Architect", "api_tab": "🌐 API Client", "del_proj": "Видалити проект", "url": "URL:", "send": "Send Request"},
             "EN": {"new": "📄 New", "open": "📂 Open", "save": "💾 Save (JSON)", "cloud": "☁️ Cloud Save", "tab": "＋ Table", "fk": "🔗 Relation", "export": "⚡ Export SQL", "export_ex": "📊 Structure (Excel)", "search": "SEARCH PROJECTS", "my_projs": "MY PROJECTS", "arch_tab": "📐 Architect", "api_tab": "🌐 API Client", "del_proj": "Delete Project", "url": "URL:", "send": "Send Request"}
@@ -350,24 +506,28 @@ class DashboardFrame(tk.Frame):
         self.lbl_url.config(text=t["url"]); self.btn_send.config(text=t["send"])
 
     def set_fk_button_state(self, active=False):
+        """Підсвічує кнопку FK синім кольором під час створення зв'язку."""
         if active:
-            self.btn_fk.configure(bg="#1f6feb", fg="white") # Синя підсвітка
+            self.btn_fk.configure(bg="#1f6feb", fg="white") 
         else:
             self.btn_fk.configure(bg="#21262d", fg="#c9d1d9")
 
     def _draw_grid(self):
+        """Малює фонову розмітку (сітку) на канвасі."""
         self.canvas.delete("grid")
         for i in range(0, 2000, 25):
-            self.canvas.create_line(i, 0, i, 2000, fill="#161b22", tags="grid") # Темна сітка
+            self.canvas.create_line(i, 0, i, 2000, fill="#161b22", tags="grid") 
             self.canvas.create_line(0, i, 2000, i, fill="#161b22", tags="grid")
         self.canvas.tag_lower("grid")
 
     def toggle_sidebar(self):
+        """Ховає або показує бічну панель зі списком проєктів."""
         if self.sidebar_visible: self.sidebar.pack_forget()
         else: self.sidebar.pack(side="left", fill="y", before=self.notebook)
         self.sidebar_visible = not self.sidebar_visible
 
     def _setup_api_ui(self):
+        """Ініціалізує інтерфейс для вкладки API Client."""
         top_bar = tk.Frame(self.api_frame, pady=10, bg="#161b22")
         top_bar.pack(fill="x")
         self.lbl_url = tk.Label(top_bar, text="URL:", bg="#161b22", fg="white")
@@ -380,18 +540,16 @@ class DashboardFrame(tk.Frame):
         self.result_text = tk.Text(self.api_frame, bg="#0d1117", fg="#4ade80", font=("Consolas", 11), insertbackground="white", bd=0)
         self.result_text.pack(fill="both", expand=True, padx=10, pady=10)
 
-
     def draw_table(self, table_id, name, x, y, columns=None):
+        """Малює візуальне представлення таблиці та її полів на канвасі."""
+        self.canvas.delete(table_id)
+
         width, header_h, row_h = 160, 30, 25
         total_h = header_h + (len(columns) if columns else 1) * row_h + 5
         
-        # Тінь/Бордер
         self.canvas.create_rectangle(x+2, y+2, x+width+2, y+total_h+2, fill="#000000", outline="", tags=(table_id, "table"))
-        # Тіло таблиці
         self.canvas.create_rectangle(x, y, x+width, y+total_h, fill="#161b22", outline="#30363d", tags=(table_id, "table"))
-        # Заголовок таблиці
         self.canvas.create_rectangle(x, y, x+width, y+header_h, fill="#21262d", outline="#30363d", tags=(table_id, "table"))
-        # Текст заголовка
         self.canvas.create_text(x+width/2, y+header_h/2, text=name.upper(), fill="#58a6ff", font=("Segoe UI", 9, "bold"), tags=(table_id, "table"))
         
         if columns:
@@ -400,6 +558,7 @@ class DashboardFrame(tk.Frame):
                  self.canvas.create_text(x+10, y+header_h+12+(i*row_h), text=f"{prefix}{col_name}: {col_type}", fill="#c9d1d9", anchor="w", font=("Segoe UI", 9), tags=(table_id, "table"))
 
     def draw_connection(self, from_id, from_col, cols_f, to_id, to_col, cols_t):
+        """Малює пунктирну лінію зв'язку між двома таблицями."""
         items_f = self.canvas.find_withtag(from_id); items_t = self.canvas.find_withtag(to_id)
         if items_f and items_t:
             c1 = self.canvas.coords(items_f[1]); c2 = self.canvas.coords(items_t[1])
@@ -408,6 +567,5 @@ class DashboardFrame(tk.Frame):
             y1 = c1[1] + 30 + (idx_f * 25) + 12; y2 = c2[1] + 30 + (idx_t * 25) + 12
             x1 = c1[2] if c1[0] < c2[0] else c1[0]; x2 = c2[0] if c1[0] < c2[0] else c2[2]
             
-            # Змінили колір лінії на гарний синій
             line = self.canvas.create_line(x1, y1, x2, y2, fill="#58a6ff", width=1.5, arrow=tk.LAST, dash=(4, 2), tags=("connection"))
             self.canvas.tag_lower(line)

@@ -9,30 +9,32 @@ import random
 from dotenv import load_dotenv
 from google import genai
 from email.mime.text import MIMEText
-from tkinter import ttk, messagebox, filedialog, simpledialog
-from view import LoginFrame, DashboardFrame, ColumnDialog, AISmartFillDialog
+from tkinter import ttk, filedialog, simpledialog
+from view import (
+    LoginFrame, DashboardFrame, ColumnDialog, AISmartFillDialog, 
+    MessageDialog, ProgressDialog, VerificationDialog, TableManagerDialog
+)
 from validators import (
     validate_sql_name, 
     confirm_save_action, 
-    can_add_primary_key, 
     validate_foreign_key_match, 
     check_unsaved_changes
 )
 
-# Завантажуємо змінні середовища з файлу .env
 load_dotenv()
 
 class ApiManager:
-    """Клас для керування мережевими запитами (API Client)"""
+    """Менеджер для роботи з вкладкою API Client (відправка HTTP запитів)."""
     def __init__(self, model, view):
         self.model = model
         self.view = view
 
     def handle_request(self):
+        """Відправляє GET запит за вказаним URL, обробляє відповідь та виводить результат або помилку."""
         dash_fr = self.view.frames[DashboardFrame]
         url = dash_fr.url_entry.get().strip()
         if not url.startswith(("http://", "https://")):
-            messagebox.showwarning("URL Error", "Введіть валідний URL (http/https)")
+            MessageDialog(self.view, "Помилка URL", "Введіть валідний URL (http/https)", "error")
             return
         
         output_widget = getattr(dash_fr, 'result_text', None)
@@ -58,7 +60,7 @@ class ApiManager:
                 output_widget.insert("end", f"Status: {response.status_code}\n\n{formatted}")
         except Exception as e:
             if output_widget: output_widget.insert("end", f"\nПомилка: {str(e)}")
-            else: messagebox.showerror("Помилка", str(e))
+            else: MessageDialog(self.view, "Помилка API", str(e), "error")
         finally:
             if hasattr(dash_fr, 'api_progress'):
                 dash_fr.api_progress.stop()
@@ -66,33 +68,31 @@ class ApiManager:
 
 
 class ArchitectManager:
-    """Клас для керування графічним редактором"""
+    """Менеджер для роботи з візуальним редактором таблиць (Канвас)."""
     def __init__(self, model, view, parent_controller):
         self.model = model
         self.view = view
         self.parent = parent_controller 
 
     def handle_add_table(self):
-        dialog = ColumnDialog(self.view, lang=self.parent.lang)
-        self.view.wait_window(dialog)
-        if dialog.result:
-            table_name, initial_type, is_primary, description = dialog.result
-            is_valid, error_msg = validate_sql_name(table_name)
-            if not is_valid:
-                messagebox.showerror("Error", error_msg)
-                return
-            if confirm_save_action(f"створити таблицю '{table_name}'"):
-                table_id = self.model.add_new_element(table_name)
-                col_type = initial_type
-                if is_primary: col_type += " PRIMARY KEY"
-                
-                # Додаємо колонку id лише ОДИН РАЗ (баг виправлено)
-                self.model.add_column(table_id, "id", col_type, description)
-                
-                self.parent.is_dirty = True
-                self.parent.refresh_canvas()
+        """Відкриває міні-діалог для введення назви і створює нову таблицю з автоматичним полем 'id'."""
+        table_name = simpledialog.askstring("Нова таблиця", "Введіть назву таблиці:", parent=self.view)
+        if not table_name: return
+        
+        is_valid, error_msg = validate_sql_name(table_name)
+        if not is_valid:
+            MessageDialog(self.view, "Помилка валідації", error_msg, "error")
+            return
+            
+        table_id = self.model.add_new_element(table_name)
+        # Автоматично створюємо Primary Key
+        self.model.add_column(table_id, "id", "INTEGER PRIMARY KEY", "Auto-generated ID")
+        
+        self.parent.is_dirty = True
+        self.parent.refresh_canvas()
 
     def handle_fk_setup(self):
+        """Вмикає або вимикає режим створення зовнішнього ключа (Foreign Key)."""
         dash = self.view.frames[DashboardFrame]
         if self.parent.fk_step is not None:
             self.cancel_fk_mode()
@@ -101,34 +101,34 @@ class ArchitectManager:
         self.parent.fk_data = {}
         if hasattr(dash, 'set_fk_button_state'): dash.set_fk_button_state(True)
         self.view.bind("<Escape>", lambda e: self.cancel_fk_mode())
-        msg = "FK Mode: ON. Select source table\n(Press ESC to cancel)" if self.parent.lang == "EN" else "Режим FK: УВІМКНЕНО. Оберіть таблицю-джерело\n(Натисніть ESC для скасування)"
-        messagebox.showinfo("FK Mode", msg)
+        msg = "Режим FK: УВІМКНЕНО. Оберіть таблицю-джерело\n(Натисніть ESC для скасування)"
+        MessageDialog(self.view, "FK Mode", msg, "info")
 
     def cancel_fk_mode(self, show_msg=True):
+        """Скасовує процес створення FK і знімає підсвітку кнопок."""
         self.parent.fk_step = None
         self.parent.fk_data = {}
         dash = self.view.frames[DashboardFrame]
         if hasattr(dash, 'set_fk_button_state'): dash.set_fk_button_state(False)
         self.view.unbind("<Escape>") 
         if show_msg:
-            msg = "Mode disabled" if self.parent.lang == "EN" else "Режим скасовано"
-            messagebox.showinfo("FK Mode", msg)
+            MessageDialog(self.view, "FK Mode", "Режим скасовано", "info")
 
     def _select_column_for_fk(self, table_id, table_name, step):
+        """Відкриває вікно вибору колонки для створення зв'язку (Крок 1 і Крок 2)."""
         columns = self.model.get_columns_for_table(table_id)
         if not columns:
-            messagebox.showwarning("Warning", "No columns in this table!")
+            MessageDialog(self.view, "Увага", "У цій таблиці немає колонок!", "error")
             self.cancel_fk_mode()
             return
             
         top = tk.Toplevel(self.view)
-        top.title(f"Step {step}" if self.parent.lang == "EN" else f"Крок {step}")
+        top.title(f"Step {step}")
         top.geometry("300x350")
         top.grab_set() 
         
         tk.Label(top, text=f"Table: {table_name}", font=("Arial", 10, "bold")).pack(pady=10)
         
-        # Створюємо список
         lb = tk.Listbox(top, font=("Arial", 10), selectbackground="#1f6feb", selectforeground="white")
         for col_name, col_type, desc in columns:
             lb.insert("end", f"{col_name} ({col_type})")
@@ -141,16 +141,16 @@ class ArchitectManager:
                 full_str = lb.get(selection[0])
                 selected_col = full_str.split(" (")[0]
                 selected_col_type = next(c[1] for c in columns if c[0] == selected_col)
-                if step == 1:
+                
+                if step == 1: # Вибрали таблицю-джерело
                     self.parent.fk_data.update({"from_id": table_id, "from_col": selected_col, "from_type": selected_col_type})
                     self.parent.fk_step = 2
                     top.destroy()
-                    msg = "Step 2: Select target table" if self.parent.lang == "EN" else "Крок 2: Оберіть цільову таблицю"
-                    messagebox.showinfo("FK Mode", msg)
-                else:
+                    MessageDialog(self.view, "FK Mode", "Крок 2: Оберіть цільову таблицю", "info")
+                else:         # Вибрали цільову таблицю
                     is_valid, err = validate_foreign_key_match(self.parent.fk_data["from_type"], selected_col_type)
                     if not is_valid:
-                        messagebox.showerror("Error", err)
+                        MessageDialog(self.view, "Помилка типу", err, "error")
                         self.cancel_fk_mode()
                         top.destroy()
                         return
@@ -159,20 +159,20 @@ class ArchitectManager:
                     self.parent.refresh_canvas()
                     self.cancel_fk_mode(show_msg=False) 
                     top.destroy()
-                    messagebox.showinfo("Success", "Relation created!" if self.parent.lang == "EN" else "Зв'язок створено!")
+                    MessageDialog(self.view, "Успіх", "Зв'язок створено!", "success")
                     
-        btn_text = "Confirm" if self.parent.lang == "EN" else "Підтвердити"
-        ttk.Button(top, text=btn_text, command=confirm).pack(pady=15)
+        ttk.Button(top, text="Підтвердити", command=confirm).pack(pady=15)
+
 
 class AppController:
-    """Головний контролер системи"""
+    """Головний контролер системи, що зв'язує Модель і Вигляд."""
     def __init__(self, model, view):
         self.model = model
         self.view = view
         self.api_mgr = ApiManager(model, view)
         self.arch_mgr = ArchitectManager(model, view, self)
 
-        # Безпечне читання ключів з .env
+        # Безпечне завантаження ключів з .env
         self.gemini_key = os.getenv("GEMINI_API_KEY")
         self.smtp_email = os.getenv("SMTP_EMAIL")
         self.smtp_password = os.getenv("SMTP_PASSWORD")
@@ -193,34 +193,39 @@ class AppController:
         self._setup_canvas_bindings()
 
     def _setup_main_menu(self):
+        """Ініціалізує верхнє меню вікна (Файл, Мова, Діалект)."""
         menubar = tk.Menu(self.view)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Новий / New", command=self.handle_new_project)
         file_menu.add_separator()
         file_menu.add_command(label="Вихід / Exit", command=self.view.quit)
         menubar.add_cascade(label="Файл / File", menu=file_menu)
+        
         lang_menu = tk.Menu(menubar, tearoff=0)
         lang_menu.add_command(label="Українська", command=lambda: self.switch_language("UA"))
         lang_menu.add_command(label="English", command=lambda: self.switch_language("EN"))
         menubar.add_cascade(label="Мова / Language", menu=lang_menu)
+        
         dialect_menu = tk.Menu(menubar, tearoff=0)
         for d in ["PostgreSQL", "MySQL", "SQLite", "Oracle"]:
             dialect_menu.add_command(label=d, command=lambda db=d: self.switch_dialect(db))
-        menubar.add_cascade(label="Діалект SQL / SQL Dialect", menu=dialect_menu)
+        menubar.add_cascade(label="Діалект SQL", menu=dialect_menu)
         self.view.config(menu=menubar)
 
     def switch_dialect(self, dialect):
+        """Змінює SQL діалект за замовчуванням для поточного сеансу."""
         self.default_dialect = dialect
-        msg = f"Діалект за замовчуванням змінено на: {dialect}" if self.lang == "UA" else f"Default dialect set to: {dialect}"
-        messagebox.showinfo("Налаштування", msg)
+        MessageDialog(self.view, "Налаштування", f"Діалект за замовчуванням змінено на: {dialect}", "info")
 
     def switch_language(self, lang):
+        """Змінює мову інтерфейсу."""
         self.lang = lang
         dash = self.view.frames[DashboardFrame]
         if hasattr(dash, 'update_language_ui'): dash.update_language_ui(lang)
         self.view.title(f"DevHub Architect & API [{lang}]")
 
     def handle_register(self):
+        """Обробляє реєстрацію: валідація, відправка коду, створення користувача."""
         login_fr = self.view.frames[LoginFrame]
         user = login_fr.reg_login_entry.get().strip()
         email_widget = getattr(login_fr, 'reg_email_entry', None)
@@ -228,32 +233,39 @@ class AppController:
         pwd = login_fr.reg_pass_entry.get().strip()
         
         if not user or not email or not pwd:
-            messagebox.showwarning("Помилка", "Заповніть усі поля!")
+            MessageDialog(self.view, "Помилка", "Заповніть усі поля!", "error")
             return
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            messagebox.showerror("Помилка", "Некоректний формат Email!")
+            MessageDialog(self.view, "Помилка", "Некоректний формат Email!", "error")
             return
 
         verification_code = str(random.randint(100000, 999999))
-        messagebox.showinfo("Відправка", f"Відправляємо код підтвердження на {email}...\nБудь ласка, зачекайте.")
+        
+        loader = ProgressDialog(self.view, f"Відправляємо код на {email}...")
         self.view.update() 
         
-        if self.send_verification_email(email, verification_code):
-            user_code = simpledialog.askstring("Підтвердження", f"Код відправлено на {email}.\nВведіть 6-значний код:", parent=self.view)
-            if user_code == verification_code:
+        success = self.send_verification_email(email, verification_code)
+        loader.close()
+
+        if success:
+            dialog = VerificationDialog(self.view, email)
+            self.view.wait_window(dialog)
+            
+            if dialog.result == verification_code:
                 if self.model.register(user, email, pwd):
-                    messagebox.showinfo("Успіх", "Акаунт успішно створено!")
+                    MessageDialog(self.view, "Успіх", "Акаунт успішно створено!", "success")
                     login_fr.show_login_form()
-                else: messagebox.showerror("Помилка", "Користувач вже існує.")
-            elif user_code is not None:
-                messagebox.showerror("Помилка", "Невірний код! Реєстрацію скасовано.")
-        else: messagebox.showerror("Помилка SMTP", "Не вдалося відправити лист. Перевірте налаштування .env або підключення до мережі.")
+                else: 
+                    MessageDialog(self.view, "Помилка", "Користувач вже існує.", "error")
+            elif dialog.result is not None:
+                MessageDialog(self.view, "Помилка", "Невірний код! Реєстрацію скасовано.", "error")
+        else: 
+            MessageDialog(self.view, "Помилка SMTP", "Не вдалося відправити лист. Перевірте .env.", "error")
 
     def send_verification_email(self, receiver_email, code):
+        """Надсилає email з 6-значним кодом через SMTP сервер Google."""
         if not self.smtp_email or not self.smtp_password:
-            print("SMTP Error: Email credentials not found in .env")
             return False
-
         msg = MIMEText(f"Вітаємо у DevHub Architect!\n\nВаш код підтвердження: {code}")
         msg['Subject'] = 'Код підтвердження DevHub'
         msg['From'] = f"DevHub Admin <{self.smtp_email}>"
@@ -264,29 +276,27 @@ class AppController:
             server.sendmail(self.smtp_email, receiver_email, msg.as_string())
             server.quit()
             return True
-        except Exception as e:
-            print(f"SMTP Error: {e}")
+        except Exception:
             return False
 
-    # --- ЕКСПОРТ З ШІ GEMINI (Мульти-діалект) ---
     def handle_export_sql(self):
+        """Запускає діалог ШІ-генерації, викликає Gemini API та зберігає готовий .sql скрипт."""
         dialog = AISmartFillDialog(self.view, lang=self.lang, default_dialect=self.default_dialect)
         self.view.wait_window(dialog)
         
         ai_insert_script = ""
         if dialog.result:
             if not self.gemini_key:
-                messagebox.showerror("Error", "API ключ не знайдено! Перевірте файл .env")
+                MessageDialog(self.view, "Помилка", "API ключ не знайдено! Перевірте файл .env", "error")
                 return
 
             client = genai.Client(api_key=self.gemini_key)
             params = dialog.result
-            
-            # Отримуємо обраний діалект (якщо вікно його ще не передає, за замовчуванням PostgreSQL)
             selected_dialect = params.get('dialect', 'PostgreSQL')
             tables = self.model.get_all_elements()
             
-            messagebox.showinfo("AI Wizard", f"ШІ генерує дані. Будь ласка, зачекайте...")
+            loader = ProgressDialog(self.view, f"ШІ генерує дані для {len(tables)} таблиць...")
+            self.view.update()
             
             for t_id, t_name, _, _ in tables:
                 cols = self.model.get_columns_for_table(t_id)
@@ -300,20 +310,17 @@ class AppController:
                 Контекст/Тема: {params['context']}.
                 Вимоги: 
                 - Тільки чистий SQL код для вставки даних (INSERT INTO).
-                - Якщо діалект PostgreSQL або Oracle, врахуй правильний формат дат і лапок.
                 - Реалістичні дані.
                 - Без ```sql блоків.
                 """
                 try:
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt
-                    )
+                    response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
                     ai_insert_script += f"\n-- AI Data for {t_name}\n{response.text.strip()}\n"
                 except Exception as e:
                     ai_insert_script += f"\n-- AI Error for {t_name}: {str(e)}\n"
 
-            # Формуємо фінальний файл з урахуванням діалекту
+            loader.close()
+
             sql_structure = self.model.generate_sql_script(dialect=selected_dialect)
             final_code = sql_structure + "\n\n-- START AI GENERATED DATA --\n" + ai_insert_script
             
@@ -321,12 +328,13 @@ class AppController:
             if path:
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(final_code)
-                messagebox.showinfo("SQL", f"Експорт ({selected_dialect}) та ШІ-дані збережено!")
+                MessageDialog(self.view, "Експорт завершено", f"Дані ({selected_dialect}) збережено!", "success")
 
     def handle_export_excel(self):
+        """Генерує Data Dictionary (звіт про структуру БД) і зберігає у форматі Excel."""
         tables = self.model.get_all_elements()
         if not tables:
-            messagebox.showinfo("Info", "Немає таблиць для експорту." if self.lang == "UA" else "No tables to export.")
+            MessageDialog(self.view, "Інфо", "Немає таблиць для експорту.", "info")
             return
 
         path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="database_structure.xlsx", filetypes=[("Excel files", "*.xlsx")])
@@ -335,14 +343,11 @@ class AppController:
 
         data = []
         relations = self.model.get_relations()
-        table_names = {t[0]: t[1] for t in tables} # Словник id: назва
+        table_names = {t[0]: t[1] for t in tables} 
 
-        # Збираємо дані
         for t_uuid, t_name, _, _ in tables:
             columns = self.model.get_columns_for_table(t_uuid)
             for c_name, c_type, c_desc in columns:
-                
-                # Перевіряємо, чи є це поле Foreign Key
                 fk_info = ""
                 for f_id, f_col, to_id, to_col in relations:
                     if f_id == t_uuid and f_col == c_name:
@@ -350,35 +355,51 @@ class AppController:
                         fk_info = f"➡ {target_name} ({to_col})"
 
                 data.append({
-                    "Таблиця" if self.lang == "UA" else "Table": t_name,
-                    "Поле" if self.lang == "UA" else "Column": c_name,
-                    "Тип даних" if self.lang == "UA" else "Data Type": c_type,
-                    "Опис" if self.lang == "UA" else "Description": c_desc if c_desc else "",
-                    "Зв'язок (FK)" if self.lang == "UA" else "Foreign Key": fk_info
+                    "Таблиця": t_name,
+                    "Поле": c_name,
+                    "Тип даних": c_type,
+                    "Опис": c_desc if c_desc else "",
+                    "Зв'язок (FK)": fk_info
                 })
 
         try:
             df = pd.DataFrame(data)
             df.to_excel(path, index=False)
-            messagebox.showinfo("Excel", "Словник бази даних успішно збережено!" if self.lang == "UA" else "Data dictionary saved successfully!")
+            MessageDialog(self.view, "Excel", "Словник бази даних успішно збережено!", "success")
         except Exception as e:
-            messagebox.showerror("Error", f"Помилка експорту:\n{e}")
+            MessageDialog(self.view, "Помилка експорту", str(e), "error")
 
     def handle_login(self):
+        """Обробляє логін. При успішному вході примусово зачищає старі дані канвасу."""
         login_fr = self.view.frames[LoginFrame]
         uid = self.model.authenticate(login_fr.login_entry.get().strip(), login_fr.pass_entry.get().strip())
         if uid:
             self.current_user_id = uid
+            
+            # --- ЗАЧИСТКА ДАНИХ ДЛЯ НОВОЇ СЕСІЇ ---
+            self.current_project_id = None 
+            self.is_dirty = False
+            self.model.clear_all_data() 
+            
             self.view.show_frame(DashboardFrame)
             dash = self.view.frames[DashboardFrame]
+            
             dash.project_listbox.bind("<<ListboxSelect>>", self.handle_load_project)
             dash.search_ent.bind("<KeyRelease>", lambda e: self.refresh_project_list())
-            if hasattr(dash, 'p_menu'): dash.p_menu.entryconfigure(0, command=self.handle_delete_project)
+            dash.project_listbox.bind("<Button-3>", self._show_context_menu) # Права кнопка миші
+            
+            if hasattr(dash, 'p_menu'): 
+                dash.p_menu.delete(0, "end")
+                dash.p_menu.add_command(label="✏️ Перейменувати", command=self.handle_rename_project)
+                dash.p_menu.add_command(label="❌ Видалити", command=self.handle_delete_project)
+                
             self.refresh_project_list()
             self.refresh_canvas()
-        else: messagebox.showerror("Error", "Invalid credentials")
+        else: 
+            MessageDialog(self.view, "Помилка", "Невірний логін або пароль", "error")
 
     def _show_context_menu(self, event):
+        """Відображає контекстне меню (перейменувати/видалити) при кліку правою кнопкою по проєкту."""
         dash = self.view.frames[DashboardFrame]
         dash.project_listbox.selection_clear(0, tk.END)
         nearest = dash.project_listbox.nearest(event.y)
@@ -387,32 +408,52 @@ class AppController:
             dash.p_menu.post(event.x_root, event.y_root)
 
     def handle_delete_project(self):
+        """Видаляє проєкт з бази даних."""
         dash = self.view.frames[DashboardFrame]
         selection = dash.project_listbox.curselection()
         if selection:
             text = dash.project_listbox.get(selection[0])
             p_id = int(text.split("ID:")[1].replace(")", ""))
-            if messagebox.askyesno("Delete", "Delete project forever?"):
+            if tk.messagebox.askyesno("Delete", "Delete project forever?"):
                 self.model.delete_project(p_id)
                 if self.current_project_id == p_id: self.current_project_id = None
                 self.refresh_project_list()
 
+    def handle_rename_project(self):
+        """Запитує нову назву та перейменовує проєкт."""
+        dash = self.view.frames[DashboardFrame]
+        selection = dash.project_listbox.curselection()
+        if selection:
+            text = dash.project_listbox.get(selection[0])
+            p_id = int(text.split("ID:")[1].replace(")", ""))
+            old_name = text.split(" (ID:")[0]
+            
+            new_name = simpledialog.askstring("Перейменувати", "Нова назва проєкту:", initialvalue=old_name, parent=self.view)
+            
+            if new_name and new_name.strip() and new_name.strip() != old_name:
+                self.model.rename_project(p_id, new_name.strip())
+                self.refresh_project_list()
+                MessageDialog(self.view, "Успіх", "Проєкт успішно перейменовано", "success")
+
     def handle_db_save(self):
+        """Зберігає поточний стан (JSON) у базу даних."""
         if not self.current_user_id: return
         name = simpledialog.askstring("Save", "Project Name:", initialvalue="My Project") if not self.current_project_id else "Updated"
         if not name and not self.current_project_id: return
         self.current_project_id = self.model.save_project_to_db(self.current_user_id, name, self.model.get_current_canvas_data(), self.current_project_id)
         self.is_dirty = False
         self.refresh_project_list()
-        messagebox.showinfo("OK", "Saved to cloud")
+        MessageDialog(self.view, "Збережено", "Проєкт збережено в базу даних", "success")
 
     def refresh_project_list(self):
+        """Оновлює список проєктів на бічній панелі."""
         dash = self.view.frames[DashboardFrame]
         dash.project_listbox.delete(0, tk.END)
         for p_id, p_name, p_date in self.model.get_user_projects(self.current_user_id, dash.search_ent.get()):
             dash.project_listbox.insert(tk.END, f"{p_name} (ID:{p_id})")
 
     def handle_load_project(self, event):
+        """Завантажує обраний проєкт з бази даних на канвас."""
         if not check_unsaved_changes(self.is_dirty): return
         dash = self.view.frames[DashboardFrame]
         selection = dash.project_listbox.curselection()
@@ -426,10 +467,12 @@ class AppController:
                 self.refresh_canvas()
 
     def handle_save_file(self):
+        """Зберігає проєкт локально у JSON."""
         path = filedialog.asksaveasfilename(defaultextension=".json")
         if path: self.model.export_to_json(path); self.is_dirty = False
 
     def handle_open_file(self):
+        """Завантажує проєкт з локального JSON-файлу."""
         if not check_unsaved_changes(self.is_dirty): return
         path = filedialog.askopenfilename()
         if path:
@@ -437,11 +480,13 @@ class AppController:
             self.current_project_id = None; self.is_dirty = False; self.refresh_canvas()
 
     def handle_new_project(self):
+        """Очищає робочий простір для нового проєкту."""
         if not check_unsaved_changes(self.is_dirty): return
-        if messagebox.askyesno("New", "Clear workspace?"):
+        if tk.messagebox.askyesno("New", "Clear workspace?"):
             self.current_project_id = None; self.model.clear_all_data(); self.is_dirty = False; self.refresh_canvas()
 
     def refresh_canvas(self):
+        """Перемальовує всі таблиці та зв'язки на канвасі."""
         dash_fr = self.view.frames[DashboardFrame]
         dash_fr.canvas.delete("all")
         if hasattr(dash_fr, '_draw_grid'): dash_fr._draw_grid()
@@ -450,12 +495,14 @@ class AppController:
         self.refresh_lines()
 
     def refresh_lines(self):
+        """Перемальовує лише лінії зв'язків."""
         dash_fr = self.view.frames[DashboardFrame]
         dash_fr.canvas.delete("connection")
         for f_id, f_col, t_id, t_col in self.model.get_relations():
             dash_fr.draw_connection(f_id, f_col, self.model.get_columns_for_table(f_id), t_id, t_col, self.model.get_columns_for_table(t_id))
 
     def _setup_canvas_bindings(self):
+        """Налаштовує відстеження кліків миші по канвасу."""
         dash_fr = self.view.frames[DashboardFrame]
         dash_fr.canvas.bind("<Button-1>", self.on_canvas_click)
         dash_fr.canvas.bind("<B1-Motion>", self.on_drag_motion)
@@ -464,19 +511,20 @@ class AppController:
         dash_fr.canvas.bind("<Button-3>", self.show_table_context_menu)
 
     def show_table_context_menu(self, event):
+        """Відображає контекстне меню (редагувати/видалити) при кліку правою кнопкою по таблиці."""
         canvas = event.widget
         item = canvas.find_closest(event.x, event.y)
         tags = canvas.gettags(item)
         if "table" in tags:
             table_id = tags[0]
             menu = tk.Menu(self.view, tearoff=0)
-            txt = {"edit": "📝 Редагувати" if self.lang == "UA" else "📝 Edit", "del": "❌ Видалити" if self.lang == "UA" else "❌ Delete"}
-            menu.add_command(label=txt["edit"], command=lambda: self.on_table_double_click(event))
-            menu.add_command(label=txt["del"], command=lambda: self.delete_table_action(table_id))
+            menu.add_command(label="📝 Редагувати", command=lambda: self.on_table_double_click(event))
+            menu.add_command(label="❌ Видалити", command=lambda: self.delete_table_action(table_id))
             menu.post(event.x_root, event.y_root)
 
     def delete_table_action(self, table_uuid):
-        if messagebox.askyesno("Confirm", "Видалити таблицю?"):
+        """Видаляє обрану таблицю з БД та оновлює канвас."""
+        if tk.messagebox.askyesno("Confirm", "Видалити таблицю?"):
             with self.model._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM canvas_elements WHERE uuid = %s", (table_uuid,))
@@ -484,6 +532,7 @@ class AppController:
             self.refresh_canvas()
 
     def on_canvas_click(self, event):
+        """Обробляє натискання лівої кнопки миші (початок перетягування або вибір для FK)."""
         item = event.widget.find_closest(event.x, event.y)
         tags = event.widget.gettags(item)
         if "table" in tags:
@@ -493,14 +542,26 @@ class AppController:
                 t_name = next((t[1] for t in all_t if t[0] == table_id), "Table")
                 self.arch_mgr._select_column_for_fk(table_id, t_name, self.fk_step)
                 return
+            
+            # Піднімаємо таблицю "вище" і фіксуємо координати
+            event.widget.tag_raise(table_id)
             self.drag_data = {"item": table_id, "x": event.x, "y": event.y}
     
     def on_drag_motion(self, event):
+        """Обробляє перетягування таблиці (плавний рух)."""
         if self.drag_data:
-            event.widget.move(self.drag_data["item"], event.x - self.drag_data["x"], event.y - self.drag_data["y"])
-            self.refresh_lines(); self.drag_data.update({"x": event.x, "y": event.y}); self.is_dirty = True 
+            dx = event.x - self.drag_data["x"]
+            dy = event.y - self.drag_data["y"]
+            event.widget.move(self.drag_data["item"], dx, dy)
+            
+            self.drag_data["x"] = event.x
+            self.drag_data["y"] = event.y
+            
+            self.refresh_lines()
+            self.is_dirty = True 
 
     def on_drag_stop(self, event):
+        """Обробляє відпускання лівої кнопки миші (зберігає нові координати таблиці)."""
         if self.drag_data:
             items = event.widget.find_withtag(self.drag_data["item"])
             if items:
@@ -509,39 +570,89 @@ class AppController:
             self.drag_data = None
 
     def on_table_double_click(self, event):
+        """Відкриває повноцінний редактор таблиці (TableManagerDialog)."""
         item = event.widget.find_closest(event.x, event.y)
         tags = event.widget.gettags(item)
         if "table" in tags:
             t_uuid = tags[0]
-            top = tk.Toplevel(self.view)
-            top.title("Add Field"); top.geometry("300x250"); top.grab_set()
-            tk.Label(top, text="Field Name:").pack()
-            name_ent = ttk.Entry(top); name_ent.pack()
-            tk.Label(top, text="Type:").pack()
-            type_cb = ttk.Combobox(top, values=["INTEGER", "TEXT", "REAL", "DATETIME", "VARCHAR", "BOOLEAN"], state="readonly")
-            type_cb.set("VARCHAR"); type_cb.pack()
-            is_pk = tk.BooleanVar()
-            tk.Checkbutton(top, text="PK?", variable=is_pk).pack()
-            tk.Label(top, text="Description (for AI):").pack(pady=5)
-            desc_ent = ttk.Entry(top, width=25)
-            desc_ent.pack()
+            all_t = self.model.get_all_elements()
+            t_name = next((t[1] for t in all_t if t[0] == t_uuid), "Table")
+            columns = self.model.get_columns_for_table(t_uuid)
+            
+            manager = TableManagerDialog(self.view, t_name, columns)
+            self.view.wait_window(manager)
+            
+            if manager.action == "add":
+                dialog = ColumnDialog(self.view, lang=self.lang)
+                self.view.wait_window(dialog)
+                if dialog.result:
+                    name, tp, desc = dialog.result
+                    is_valid, err = validate_sql_name(name)
+                    if not is_valid: 
+                        MessageDialog(self.view, "Помилка", err, "error")
+                        return
+                    self.model.add_column(t_uuid, name, tp, description=desc)
+                    self.is_dirty = True
+                    self.refresh_canvas()
+                    
+            elif manager.action == "edit":
+                old_col_name = manager.data
+                if old_col_name == "id":
+                    MessageDialog(self.view, "Помилка", "Primary Key не можна редагувати!", "error")
+                    return
+                    
+                old_col_data = next((c for c in columns if c[0] == old_col_name), None)
+                if old_col_data:
+                    dialog = ColumnDialog(self.view, lang=self.lang, edit_data=old_col_data)
+                    self.view.wait_window(dialog)
+                    if dialog.result:
+                        new_name, new_tp, new_desc = dialog.result
+                        self.model.update_column(t_uuid, old_col_name, new_name, new_tp, new_desc)
+                        self.is_dirty = True
+                        self.refresh_canvas()
+                        
+            elif manager.action == "delete":
+                col_name = manager.data
+                if col_name == "id":
+                    MessageDialog(self.view, "Помилка", "Primary Key не можна видалити!", "error")
+                elif tk.messagebox.askyesno("Видалення", f"Видалити поле {col_name}?"):
+                    self.model.delete_column(t_uuid, col_name)
+                    self.is_dirty = True
+                    self.refresh_canvas()
 
-            def save():
-                name = name_ent.get().strip()
-                desc = desc_ent.get().strip()
-                if not name: return
-                is_valid, err = validate_sql_name(name)
-                if not is_valid: return messagebox.showerror("Error", err)
-                tp = type_cb.get()
-                if is_pk.get():
-                    can, err_pk = can_add_primary_key(self.model.get_columns_for_table(t_uuid))
-                    if not can: return messagebox.showerror("Error", err_pk)
-                    tp += " PRIMARY KEY"
-                self.model.add_column(t_uuid, name, tp, description=desc)
-                self.is_dirty = True; self.refresh_canvas(); top.destroy()
-            ttk.Button(top, text="Save", command=save).pack()
+    def handle_forgot_password(self):
+        """Процес відновлення пароля через підтвердження пошти"""
+        from tkinter import simpledialog
+        import random
+        
+        # 1. Питаємо email
+        email = simpledialog.askstring("Відновлення", "Введіть ваш Email:", parent=self.view)
+        if not email: return
+        
+        # 2. Перевіряємо, чи є він у базі
+        if not self.model.check_email_exists(email):
+            from view import MessageDialog
+            MessageDialog(self.view, "Помилка", "Користувача з таким Email не знайдено", "error")
+            return
 
+        # 3. Генеруємо код і відправляємо (як при реєстрації)
+        verification_code = str(random.randint(100000, 999999))
+        if self.send_verification_email(email, verification_code):
+            from view import VerificationDialog, MessageDialog
+            dialog = VerificationDialog(self.view, email)
+            self.view.wait_window(dialog)
+            
+            # 4. Якщо код введено правильно
+            if dialog.result == verification_code:
+                new_pwd = simpledialog.askstring("Новий пароль", "Введіть новий пароль:", parent=self.view, show="*")
+                if new_pwd:
+                    self.model.update_password(email, new_pwd)
+                    MessageDialog(self.view, "Успіх", "Пароль змінено! Тепер можете увійти", "success")
+            elif dialog.result is not None:
+                MessageDialog(self.view, "Помилка", "Невірний код підтвердження", "error")
+   
     def _setup_bindings(self):
+        """Налаштовує кнопки верхньої панелі (Toolbar)."""
         dash_fr = self.view.frames[DashboardFrame]
         dash_fr.btn_send.config(command=self.api_mgr.handle_request)
         dash_fr.btn_add_table.config(command=self.arch_mgr.handle_add_table)
