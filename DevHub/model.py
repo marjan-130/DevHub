@@ -5,24 +5,28 @@ import uuid
 import json
 import random    
 import string       
+import os
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Завантажуємо змінні з .env для хмарного підключення до Neon
+load_dotenv()
 
 class BaseModel:
-    """Базовий клас для налаштування підключення до PostgreSQL у Docker та створення таблиць."""
+    """Базовий клас для налаштування підключення до PostgreSQL (Local Docker або Neon Cloud) та створення таблиць."""
     def __init__(self):
-        """Ініціалізує параметри підключення та запускає перевірку/створення бази даних."""
-        self.conn_params = {
-            "dbname": "devhub",
-            "user": "admin",
-            "password": "mysecretpassword",
-            "host": "localhost",
-            "port": "5432"
-        }
+        """Ініціалізує параметри підключення та запускає перевірку/створення бази даних. DATABASE_URL має пріоритет."""
+        self.db_url = os.getenv("DATABASE_URL")
+        
+        # Фолбек на локальні налаштування Docker, якщо хмарний URL відсутній
+        if not self.db_url:
+            self.db_url = "dbname=devhub user=admin password=mysecretpassword host=localhost port=5432"
+            
         self._init_db()
 
     def _get_connection(self):
         """Повертає активне з'єднання з базою даних."""
-        return psycopg2.connect(**self.conn_params)
+        return psycopg2.connect(self.db_url)
 
     def _init_db(self):
         """Створює всі необхідні таблиці (користувачі, проєкти, канвас тощо), якщо їх ще немає. Також створює адміна за замовчуванням."""
@@ -88,14 +92,10 @@ class BaseModel:
     def _validate_type(self, col_type):
         """Перевіряє, чи підтримується вказаний SQL тип даних. Також пропускає типи з розміром, як VARCHAR(64)."""
         allowed_types = ["TEXT", "INTEGER", "REAL", "VARCHAR", "DATETIME", "TIMESTAMP", "BOOLEAN"]
-        
-        # Беремо базовий тип до дужок. Наприклад, "VARCHAR(64)" -> "VARCHAR"
         base_type = col_type.upper().split('(')[0].split()[0]
-        
         if base_type in allowed_types:
             return col_type
-            
-        return "TEXT" # Безпечний фолбек, якщо тип не розпізнано
+        return "TEXT"
 
 
 class AuthService(BaseModel):
@@ -132,12 +132,12 @@ class AuthService(BaseModel):
 
     def update_password(self, email, new_password):
         """Хешує та оновлює пароль для користувача"""
-        import hashlib
         pwd_hash = hashlib.sha256(new_password.encode()).hexdigest()
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE users SET password_hash = %s WHERE email = %s", (pwd_hash, email))
             conn.commit()
+
 
 class ProjectService(BaseModel):
     """Сервіс для керування проєктами (збереження, завантаження, видалення, перейменування)."""
@@ -173,13 +173,13 @@ class ProjectService(BaseModel):
             with conn.cursor() as cur:
                 if project_id:
                     cur.execute("UPDATE projects SET json_data = %s, last_opened = %s WHERE id = %s RETURNING id", 
-                                (json_str, now, project_id))
+                                 (json_str, now, project_id))
                 else:
                     cur.execute("INSERT INTO projects (user_id, project_name, json_data, last_opened) VALUES (%s, %s, %s, %s) RETURNING id", 
-                                (user_id, project_name, json_str, now))
+                                 (user_id, project_name, json_str, now))
                 res = cur.fetchone()
                 conn.commit()
-                return res[0] if res else None
+                return res[0] if res else project_id
 
     def load_project_from_db(self, project_id):
         """Завантажує збережений JSON-стан проєкту з бази."""
@@ -208,6 +208,14 @@ class ArchitectService(BaseModel):
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("UPDATE canvas_elements SET x = %s, y = %s WHERE uuid = %s", (x, y, uuid))
+            conn.commit()
+
+    def delete_element(self, table_uuid):
+        """Видаляє таблицю та всі її колонки з бази даних."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM table_columns WHERE table_uuid = %s", (table_uuid,))
+                cur.execute("DELETE FROM canvas_elements WHERE uuid = %s", (table_uuid,))
             conn.commit()
 
     def get_all_elements(self):
@@ -276,13 +284,10 @@ class ArchitectService(BaseModel):
         tables = self.get_all_elements()
         sql_output = f"-- DevHub Architect Export ({dialect})\n"
         sql_output += f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-        
         table_names = {t[0]: t[1] for t in tables}
         
         for t_uuid, t_name, _, _ in tables:
             columns = self.get_columns_for_table(t_uuid)
-            
-            # Налаштування Primary Key під конкретну БД
             pk_type = "SERIAL PRIMARY KEY"
             if dialect == "SQLite": pk_type = "INTEGER PRIMARY KEY AUTOINCREMENT"
             elif dialect == "MySQL": pk_type = "INT AUTO_INCREMENT PRIMARY KEY"
@@ -290,21 +295,16 @@ class ArchitectService(BaseModel):
 
             sql_output += f"CREATE TABLE {t_name} (\n"
             col_lines = []
-            
             for c_name, c_type, c_desc in columns:
-                current_type = c_type
-                
-                # Підміна типів даних
-                if "PRIMARY KEY" in current_type.upper():
-                    current_type = pk_type
+                curr_type = c_type
+                if "PRIMARY KEY" in curr_type.upper():
+                    curr_type = pk_type
                 else:
-                    if dialect == "Oracle" and "VARCHAR" in current_type:
-                        current_type = current_type.replace("VARCHAR", "VARCHAR2")
-                    elif dialect == "PostgreSQL" and "DATETIME" in current_type:
-                        current_type = current_type.replace("DATETIME", "TIMESTAMP")
-                
-                line = f"    {c_name} {current_type}"
-                col_lines.append(line)
+                    if dialect == "Oracle" and "VARCHAR" in curr_type:
+                        curr_type = curr_type.replace("VARCHAR", "VARCHAR2")
+                    elif dialect == "PostgreSQL" and "DATETIME" in curr_type:
+                        curr_type = curr_type.replace("DATETIME", "TIMESTAMP")
+                col_lines.append(f"    {c_name} {curr_type}")
             
             for f_uuid, f_col, t_uuid_target, t_col in self.get_relations():
                 if f_uuid == t_uuid:
@@ -313,7 +313,7 @@ class ArchitectService(BaseModel):
             
             sql_output += ",\n".join(col_lines) + "\n);\n\n"
             
-            # Експорт коментарів (у SQLite немає COMMENT ON COLUMN)
+            # Експорт коментарів
             for c_name, _, c_desc in columns:
                 if c_desc:
                     if dialect in ["PostgreSQL", "Oracle"]:
@@ -326,7 +326,7 @@ class ArchitectService(BaseModel):
 
 
 class DataModel(AuthService, ProjectService, ArchitectService):
-    """Головний клас моделі даних, який об'єднує всі сервіси."""
+    """Головний клас моделі даних, який об'єднує всі сервіси та додаткові функції."""
     def log_api_call(self, url, status):
         """Логує кожен виклик API у базі даних (для історії)."""
         with self._get_connection() as conn:
@@ -351,13 +351,12 @@ class DataModel(AuthService, ProjectService, ArchitectService):
                 cur.execute("DELETE FROM table_relations")
                 cur.execute("DELETE FROM table_columns")
                 cur.execute("DELETE FROM canvas_elements")
-                
                 for el in data["elements"]:
                     cur.execute("INSERT INTO canvas_elements VALUES (%s, %s, %s, %s)", el)
                 for group in data["columns"]:
                     for cn, ct, desc in group["items"]:
                         cur.execute("INSERT INTO table_columns (table_uuid, column_name, column_type, description) VALUES (%s, %s, %s, %s)", 
-                                    (group["table_uuid"], cn, ct, desc))
+                                     (group["table_uuid"], cn, ct, desc))
                 for rel in data["relations"]:
                     cur.execute("INSERT INTO table_relations (from_uuid, from_col, to_uuid, to_col) VALUES (%s, %s, %s, %s)", rel)
             conn.commit()
@@ -388,18 +387,14 @@ class DataModel(AuthService, ProjectService, ArchitectService):
         for _ in range(count):
             row = []
             for name, col_type, desc in columns:
-                col_type = col_type.upper()
-                if "PRIMARY KEY" in col_type or "SERIAL" in col_type:
-                    row.append("NULL") 
-                elif "INTEGER" in col_type:
-                    row.append(random.randint(1, 1000))
-                elif "REAL" in col_type:
-                    row.append(round(random.uniform(1.0, 1000.0), 2))
-                elif "DATETIME" in col_type or "TIMESTAMP" in col_type:
-                    days_back = 365 if year_filter else 3650
-                    date = datetime.now() - timedelta(days=random.randint(0, days_back))
-                    row.append(date.strftime('%Y-%m-%d %H:%M:%S'))
-                else:
-                    row.append(f"Test_{''.join(random.choices(string.ascii_lowercase, k=4))}")
+                ct = col_type.upper()
+                if "PRIMARY" in ct or "SERIAL" in ct: row.append("NULL")
+                elif "INTEGER" in ct: row.append(random.randint(1, 1000))
+                elif "REAL" in ct: row.append(round(random.uniform(1.0, 1000.0), 2))
+                elif "DATE" in ct or "TIME" in ct or "TIMESTAMP" in ct:
+                    days = 365 if year_filter else 3650
+                    d = datetime.now() - timedelta(days=random.randint(0, days))
+                    row.append(d.strftime('%Y-%m-%d %H:%M:%S'))
+                else: row.append(f"Mock_{''.join(random.choices(string.ascii_lowercase, k=4))}")
             all_rows.append(row)
         return all_rows

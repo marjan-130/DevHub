@@ -1,6 +1,6 @@
 psycopg2-binary
+python-dotenv
+google-genai
 pandas
 openpyxl
 requests
-google-genai
-python-dotenv

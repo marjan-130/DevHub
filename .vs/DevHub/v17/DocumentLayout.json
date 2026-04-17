@@ -3,12 +3,20 @@
   "WorkspaceRootPath": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\view.py||{8B382828-6202-11D1-8870-0000F87579D2}",
-      "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\view.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+      "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\Dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\Dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\docker-compose.yml||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\docker-compose.yml||{8B382828-6202-11D1-8870-0000F87579D2}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\controller.py||{8B382828-6202-11D1-8870-0000F87579D2}",
       "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\controller.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\.env||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\.env||{8B382828-6202-11D1-8870-0000F87579D2}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\model.py||{8B382828-6202-11D1-8870-0000F87579D2}|",
@@ -19,8 +27,8 @@
       "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\validators.py||{8B382828-6202-11D1-8870-0000F87579D2}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\.env||{8B382828-6202-11D1-8870-0000F87579D2}",
-      "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\.env||{8B382828-6202-11D1-8870-0000F87579D2}"
+      "AbsoluteMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\view.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{0057DB2C-A96B-4F73-A2C1-F2CA5B697B77}|DevHub\\DevHub.pyproj|solutionrelative:DevHub\\view.py||{8B382828-6202-11D1-8870-0000F87579D2}"
     }
   ],
   "DocumentGroupContainers": [
@@ -39,38 +47,51 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "view.py",
-              "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\view.py",
-              "RelativeDocumentMoniker": "DevHub\\view.py",
-              "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\view.py",
-              "RelativeToolTip": "DevHub\\view.py",
-              "ViewState": "AgIAADABAAAAAAAAAAAowEEBAAAEAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
-              "WhenOpened": "2026-04-14T14:47:40.668Z",
+              "Title": "Dockerfile",
+              "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\Dockerfile",
+              "RelativeDocumentMoniker": "DevHub\\Dockerfile",
+              "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\Dockerfile",
+              "RelativeToolTip": "DevHub\\Dockerfile",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-04-17T16:51:16.822Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 1,
+              "Title": "docker-compose.yml",
+              "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\docker-compose.yml",
+              "RelativeDocumentMoniker": "DevHub\\docker-compose.yml",
+              "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\docker-compose.yml",
+              "RelativeToolTip": "DevHub\\docker-compose.yml",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003775|",
+              "WhenOpened": "2026-04-17T12:05:54.839Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "controller.py",
               "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\controller.py",
               "RelativeDocumentMoniker": "DevHub\\controller.py",
               "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\controller.py",
               "RelativeToolTip": "DevHub\\controller.py",
-              "ViewState": "AgIAAG8BAAAAAAAAAAAowIYCAAA+AAAAAAAAAA==",
+              "ViewState": "AgIAAB4CAAAAAAAAAAAowDcBAABIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
               "WhenOpened": "2026-04-14T14:45:36.797Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "model.py",
               "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\model.py",
               "RelativeDocumentMoniker": "DevHub\\model.py",
               "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\model.py",
               "RelativeToolTip": "DevHub\\model.py",
-              "ViewState": "AgIAAF4AAAAAAAAAAAAswHwAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAACUAAAAAAAAAAAAiwI8BAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
               "WhenOpened": "2026-04-14T12:54:59.159Z",
               "EditorCaption": ""
@@ -78,27 +99,41 @@
             {
               "$type": "Document",
               "DocumentIndex": 3,
-              "Title": "validators.py",
-              "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\validators.py",
-              "RelativeDocumentMoniker": "DevHub\\validators.py",
-              "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\validators.py",
-              "RelativeToolTip": "DevHub\\validators.py",
-              "ViewState": "AgIAABUAAAAAAAAAAAAAAFIAAAAtAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
-              "WhenOpened": "2026-04-13T15:17:50.647Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
               "Title": ".env",
               "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\.env",
               "RelativeDocumentMoniker": "DevHub\\.env",
               "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\.env",
               "RelativeToolTip": "DevHub\\.env",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAAAaAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAACDAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2026-04-13T15:17:40.458Z"
+              "WhenOpened": "2026-04-13T15:17:40.458Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "view.py",
+              "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\view.py",
+              "RelativeDocumentMoniker": "DevHub\\view.py",
+              "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\view.py",
+              "RelativeToolTip": "DevHub\\view.py",
+              "ViewState": "AgIAAOYBAAAAAAAAAAAowDECAABeAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2026-04-14T14:47:40.668Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "validators.py",
+              "DocumentMoniker": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\validators.py",
+              "RelativeDocumentMoniker": "DevHub\\validators.py",
+              "ToolTip": "D:\\\u0443\u043D\u0456\u0432\u0435\u0440\\2 \u043A\u0443\u0440\u0441 2 \u0441\\\u043A\u0434\\\u043A\u0443\u0440\u0441\u043E\u0432\u0430\\DevHub\\DevHub\\validators.py",
+              "RelativeToolTip": "DevHub\\validators.py",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAAFIAAAAtAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2026-04-13T15:17:50.647Z",
+              "EditorCaption": ""
             }
           ]
         }

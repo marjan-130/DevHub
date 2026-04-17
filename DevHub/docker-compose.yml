@@ -1,18 +1,32 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15
-    container_name: devhub_postgres
-    restart: always
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: mysecretpassword
-      POSTGRES_DB: devhub
-    ports:
-      - "5432:5432"
+  devhub_app:
+    # Збирає образ на основі твого Dockerfile
+    build: .
+    
+    # Назва контейнера в системі
+    container_name: devhub_container
+    
+    # Автоматично підтягує всі змінні (DATABASE_URL, API ключі) з файлу .env
+    env_file:
+      - .env
+    
+    # Синхронізація папки з кодом (щоб зміни в коді відразу з'являлися в контейнері)
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - .:/app
+    
+    # Налаштування для роботи графічного інтерфейсу (GUI)
+    environment:
+      # Для Linux/macOS. Для Windows (через X-Server) значення DISPLAY зазвичай host.docker.internal:0.0
+      - DISPLAY=${DISPLAY:-host.docker.internal:0.0}
+    
+    # Дозволяє додатку бачити порти хоста (корисно для відладки)
+    network_mode: "host"
+    
+    # Ці параметри дозволяють взаємодіяти з терміналом (важливо для консольних логів)
+    stdin_open: true
+    tty: true
 
-volumes:
-  pgdata:
+    # Політика перезапуску у разі помилки
+    restart: unless-stopped
