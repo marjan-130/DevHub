@@ -1,0 +1,23 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.sln.docstates
+
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+
+# Secrets & Config
+**/.env
+DevHub/.env
+requirements.txt.txt
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
